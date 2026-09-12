@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.5 EGG FILTER HOP] STARTING...")
+print("[Lordzy POP v12.6 EGG BROWSER FILTER] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1830,46 +1830,29 @@ end
 
 populateEggs()
 
-local unreadChatCount = 0
-local updateChatBadge
-local isMinimized = false
-local restoreHub
-
-
-
--- Estado do filtro de eggs. getgenv ajuda alguns executores a preservar
--- a seleção enquanto o script é recarregado.
-local LordzyHopState
-do
-    local env = (getgenv and getgenv()) or _G
-    env.LordzyHopState = env.LordzyHopState or {
-        filters = {
-            blackhole = false,
-            cherub = false,
-        },
-        eggHopEnabled = false,
-    }
-    LordzyHopState = env.LordzyHopState
-end
-
---------------------------------------------------------------------------------
--- RIDE A PET - SERVER HOP
---------------------------------------------------------------------------------
+local LordzyEggFilter = {}
 
 do
-    local ServerHopSection = section(
-        RidePage,
-        "Server Hop",
-        "Troque de servidor manualmente ou deixe o hub procurar outro automaticamente."
-    )
-
-    local autoServerHop = false
-    local autoServerHopToken = 0
-    local HOP_RETRY_SECONDS = 20
-
     --------------------------------------------------------------------------
     -- EGG FILTER SERVER HOP
     --------------------------------------------------------------------------
+
+        end
+    )
+
+    toggleRow(
+        EggFilterSection,
+        "Cherub / Cherubi Egg",
+        "Aceita Cherub, Cherubi e outras variações que contenham Cherub.",
+        LordzyHopState.filters.cherub == true,
+        function(state)
+            LordzyHopState.filters.cherub = state
+            LordzyEggFilter.refreshEggFilterStatus()
+        end
+    )
+
+    LordzyEggFilter.refreshEggFilterStatus()
+
 
     local EggFilterSection = section(
         RidePage,
@@ -1877,12 +1860,12 @@ do
         "Escolha os eggs desejados. O hub troca de servidor até encontrar um deles."
     )
 
-    local function normalizedEggName(name)
+    function LordzyEggFilter.normalizedEggName(name)
         return tostring(name or ""):lower():gsub("[%s_%-]", "")
     end
 
-    local function eggMatchesFilter(eggName, filterKey)
-        local normalized = normalizedEggName(eggName)
+    function LordzyEggFilter.eggMatchesFilter(eggName, filterKey)
+        local normalized = LordzyEggFilter.normalizedEggName(eggName)
 
         if filterKey == "blackhole" then
             return string.find(normalized, "blackhole", 1, true) ~= nil
@@ -1894,7 +1877,7 @@ do
         return false
     end
 
-    local function getSelectedEggFilters()
+    function LordzyEggFilter.getSelectedEggFilters()
         local selected = {}
 
         if LordzyHopState.filters.blackhole then
@@ -1908,7 +1891,7 @@ do
         return selected
     end
 
-    local function getSelectedEggFilterNames()
+    function LordzyEggFilter.getSelectedEggFilterNames()
         local names = {}
 
         if LordzyHopState.filters.blackhole then
@@ -1922,19 +1905,19 @@ do
         return names
     end
 
-    local function findWantedEggInCurrentServer()
+    function LordzyEggFilter.findWantedEggInCurrentServer()
         if not RenderedEggsFolder then
             return nil, nil
         end
 
-        local selected = getSelectedEggFilters()
+        local selected = LordzyEggFilter.getSelectedEggFilters()
         if #selected == 0 then
             return nil, nil
         end
 
         for _, egg in ipairs(RenderedEggsFolder:GetChildren()) do
             for _, filterKey in ipairs(selected) do
-                if eggMatchesFilter(egg.Name, filterKey) then
+                if LordzyEggFilter.eggMatchesFilter(egg.Name, filterKey) then
                     return egg, filterKey
                 end
             end
@@ -1971,8 +1954,8 @@ do
     FilterStatusSub.Position = UDim2.new(0, 12, 0, 28)
     FilterStatusSub.Size = UDim2.new(1, -24, 0, 14)
 
-    local function refreshEggFilterStatus()
-        local names = getSelectedEggFilterNames()
+    function LordzyEggFilter.refreshEggFilterStatus()
+        local names = LordzyEggFilter.getSelectedEggFilterNames()
 
         if #names == 0 then
             FilterStatusTitle.Text = "Filtro: nenhum egg selecionado"
@@ -1982,7 +1965,7 @@ do
             FilterStatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
             FilterStatusTitle.TextColor3 = Theme.Warning
 
-            local found = findWantedEggInCurrentServer()
+            local found = LordzyEggFilter.findWantedEggInCurrentServer()
             if found then
                 FilterStatusSub.Text = "Encontrado neste servidor: " .. found.Name
                 FilterStatusSub.TextColor3 = Theme.Success
@@ -2000,22 +1983,48 @@ do
         LordzyHopState.filters.blackhole == true,
         function(state)
             LordzyHopState.filters.blackhole = state
-            refreshEggFilterStatus()
-        end
+            LordzyEggFilter.refreshEggFilterStatus()
+    LordzyEggFilter.Section = EggFilterSection
+    LordzyEggFilter.StatusTitle = FilterStatusTitle
+    LordzyEggFilter.StatusSub = FilterStatusSub
+end
+
+local unreadChatCount = 0
+local updateChatBadge
+local isMinimized = false
+local restoreHub
+
+
+
+-- Estado do filtro de eggs. getgenv ajuda alguns executores a preservar
+-- a seleção enquanto o script é recarregado.
+local LordzyHopState
+do
+    local env = (getgenv and getgenv()) or _G
+    env.LordzyHopState = env.LordzyHopState or {
+        filters = {
+            blackhole = false,
+            cherub = false,
+        },
+        eggHopEnabled = false,
+    }
+    LordzyHopState = env.LordzyHopState
+end
+
+--------------------------------------------------------------------------------
+-- RIDE A PET - SERVER HOP
+--------------------------------------------------------------------------------
+
+do
+    local ServerHopSection = section(
+        RidePage,
+        "Server Hop",
+        "Troque de servidor manualmente ou deixe o hub procurar outro automaticamente."
     )
 
-    toggleRow(
-        EggFilterSection,
-        "Cherub / Cherubi Egg",
-        "Aceita Cherub, Cherubi e outras variações que contenham Cherub.",
-        LordzyHopState.filters.cherub == true,
-        function(state)
-            LordzyHopState.filters.cherub = state
-            refreshEggFilterStatus()
-        end
-    )
-
-    refreshEggFilterStatus()
+    local autoServerHop = false
+    local autoServerHopToken = 0
+    local HOP_RETRY_SECONDS = 20
 
     local function executorRequest(url)
         -- Não adiciona parâmetros extras à URL da API do Roblox.
@@ -2277,9 +2286,9 @@ do
         eggHopBusy = false
 
         if foundEgg then
-            FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
-            FilterStatusTitle.TextColor3 = Theme.Success
-            FilterStatusSub.Text = "Server Hop parado neste servidor."
+            LordzyEggFilter.StatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
+            LordzyEggFilter.StatusTitle.TextColor3 = Theme.Success
+            LordzyEggFilter.StatusSub.Text = "Server Hop parado neste servidor."
 
             notify(
                 "Egg encontrado!",
@@ -2298,7 +2307,7 @@ do
             return
         end
 
-        local selected = getSelectedEggFilters()
+        local selected = LordzyEggFilter.getSelectedEggFilters()
         if #selected == 0 then
             LordzyHopState.eggHopEnabled = false
             notify(
@@ -2318,17 +2327,17 @@ do
             task.wait(2)
 
             while LordzyHopState.eggHopEnabled and myToken == eggHopToken do
-                local foundEgg = findWantedEggInCurrentServer()
+                local foundEgg = LordzyEggFilter.findWantedEggInCurrentServer()
 
                 if foundEgg then
                     stopEggHop(foundEgg)
                     return
                 end
 
-                local names = getSelectedEggFilterNames()
-                FilterStatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
-                FilterStatusTitle.TextColor3 = Theme.Warning
-                FilterStatusSub.Text = "Não encontrado. Trocando de servidor..."
+                local names = LordzyEggFilter.getSelectedEggFilterNames()
+                LordzyEggFilter.StatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
+                LordzyEggFilter.StatusTitle.TextColor3 = Theme.Warning
+                LordzyEggFilter.StatusSub.Text = "Não encontrado. Trocando de servidor..."
 
                 notify(
                     "Egg Filter Hop",
@@ -2360,7 +2369,7 @@ do
             LordzyHopState.eggHopEnabled = state
 
             if state then
-                local selected = getSelectedEggFilters()
+                local selected = LordzyEggFilter.getSelectedEggFilters()
 
                 if #selected == 0 then
                     LordzyHopState.eggHopEnabled = false
@@ -2372,7 +2381,7 @@ do
                     return
                 end
 
-                local foundEgg = findWantedEggInCurrentServer()
+                local foundEgg = LordzyEggFilter.findWantedEggInCurrentServer()
                 if foundEgg then
                     stopEggHop(foundEgg)
                     return
@@ -2382,7 +2391,7 @@ do
             else
                 eggHopToken += 1
                 eggHopBusy = false
-                refreshEggFilterStatus()
+                LordzyEggFilter.refreshEggFilterStatus()
                 notify("Egg Filter Hop", "Desativado.", "warning")
             end
         end
@@ -2445,8 +2454,8 @@ do
 
             task.wait(0.1)
 
-            for _, filterKey in ipairs(getSelectedEggFilters()) do
-                if eggMatchesFilter(child.Name, filterKey) then
+            for _, filterKey in ipairs(LordzyEggFilter.getSelectedEggFilters()) do
+                if LordzyEggFilter.eggMatchesFilter(child.Name, filterKey) then
                     stopEggHop(child)
                     break
                 end
@@ -3622,4 +3631,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.5 EGG FILTER HOP] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.6 EGG BROWSER FILTER] LOADED SUCCESSFULLY")
