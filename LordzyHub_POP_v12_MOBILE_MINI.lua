@@ -6,10 +6,11 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12 MOBILE MINI] STARTING...")
+print("[Lordzy POP v12.2 SERVERHOP] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -538,7 +539,7 @@ Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
 Shadow.Position = UDim2.fromScale(0.5, 0.5)
 Shadow.Size = UDim2.new(0, 704, 0, 514)
 Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-Shadow.BackgroundTransparency = 0.48
+Shadow.BackgroundTransparency = 0.62
 Shadow.BorderSizePixel = 0
 Shadow.Parent = ScreenGui
 uiCorner(Shadow, 22)
@@ -1267,12 +1268,14 @@ do
     local PopRoot = Instance.new("Frame")
     PopRoot.Name = "PopLauncher"
     PopRoot.Size = UDim2.fromScale(1, 1)
+    PopRoot.BackgroundColor3 = Color3.fromRGB(8, 9, 13)
     PopRoot.BackgroundTransparency = 1
     PopRoot.Visible = true
     PopRoot.Parent = HomePage
 
     -- Ambient background blocks, inspired by the POP template without external assets.
     local GlowA = Instance.new("Frame")
+    GlowA.Visible = false
     GlowA.Size = UDim2.new(0, 290, 0, 290)
     GlowA.Position = UDim2.new(0, -80, 0, -90)
     GlowA.BackgroundColor3 = Color3.fromRGB(53, 38, 86)
@@ -1291,6 +1294,7 @@ do
     GlowAGradient.Parent = GlowA
 
     local GlowB = Instance.new("Frame")
+    GlowB.Visible = false
     GlowB.Size = UDim2.new(0, 360, 0, 260)
     GlowB.Position = UDim2.new(1, -250, 1, -160)
     GlowB.BackgroundColor3 = Color3.fromRGB(20, 91, 116)
@@ -1382,7 +1386,7 @@ do
         tile:SetAttribute("ModuleTitle", titleText)
         tile.LayoutOrder = order
         tile.BackgroundColor3 = Color3.fromRGB(22, 22, 29)
-        tile.BackgroundTransparency = 0.16
+        tile.BackgroundTransparency = 0.06
         tile.BorderSizePixel = 0
         tile.Text = ""
         tile.AutoButtonColor = false
@@ -1516,13 +1520,14 @@ do
     -- Decorative corner text, like a designed landing page.
     local FooterMark = label(
         PopRoot,
-        "POP MODE  /  v12 MOBILE MINI",
+        "POP MODE  /  v12.2 SERVERHOP",
         7,
         Theme.Dim,
         Enum.Font.GothamBold,
         Enum.TextXAlignment.Right
     )
     FooterMark.Name = "FooterMark"
+    FooterMark.Visible = false
     FooterMark.AnchorPoint = Vector2.new(1, 1)
     FooterMark.Position = UDim2.new(1, -12, 1, -8)
     FooterMark.Size = UDim2.new(0, 180, 0, 14)
@@ -1835,6 +1840,184 @@ local unreadChatCount = 0
 local updateChatBadge
 local isMinimized = false
 local restoreHub
+
+
+--------------------------------------------------------------------------------
+-- RIDE A PET - SERVER HOP
+--------------------------------------------------------------------------------
+
+do
+    local ServerHopSection = section(
+        RidePage,
+        "Server Hop",
+        "Troque de servidor manualmente ou deixe o hub procurar outro automaticamente."
+    )
+
+    local autoServerHop = false
+    local autoServerHopToken = 0
+    local HOP_RETRY_SECONDS = 25
+
+    local function fetchPublicServers(cursor)
+        local placeId = game.PlaceId
+        local url = "https://games.roblox.com/v1/games/" ..
+            tostring(placeId) ..
+            "/servers/Public?sortOrder=Asc&limit=100"
+
+        if cursor and cursor ~= "" then
+            url = url .. "&cursor=" .. HttpService:UrlEncode(cursor)
+        end
+
+        local ok, body = pcall(function()
+            return game:HttpGet(url)
+        end)
+
+        if not ok or type(body) ~= "string" then
+            return nil
+        end
+
+        local decodeOk, decoded = pcall(function()
+            return HttpService:JSONDecode(body)
+        end)
+
+        if not decodeOk or type(decoded) ~= "table" then
+            return nil
+        end
+
+        return decoded
+    end
+
+    local function findHopServer()
+        local cursor = nil
+        local checkedPages = 0
+        local candidates = {}
+
+        repeat
+            checkedPages += 1
+            local page = fetchPublicServers(cursor)
+
+            if not page then
+                break
+            end
+
+            if type(page.data) == "table" then
+                for _, server in ipairs(page.data) do
+                    local serverId = server.id
+                    local playing = tonumber(server.playing) or 0
+                    local maxPlayers = tonumber(server.maxPlayers) or 0
+
+                    if serverId
+                    and serverId ~= game.JobId
+                    and maxPlayers > 0
+                    and playing < maxPlayers then
+                        table.insert(candidates, {
+                            id = serverId,
+                            playing = playing,
+                            maxPlayers = maxPlayers
+                        })
+                    end
+                end
+            end
+
+            cursor = page.nextPageCursor
+        until not cursor or cursor == "" or checkedPages >= 3 or #candidates >= 12
+
+        if #candidates == 0 then
+            return nil
+        end
+
+        -- Prefer a server with fewer players, but not necessarily empty.
+        table.sort(candidates, function(a, b)
+            return a.playing < b.playing
+        end)
+
+        local poolSize = math.min(5, #candidates)
+        return candidates[math.random(1, poolSize)]
+    end
+
+    local function hopServerOnce()
+        notify("Server Hop", "Procurando outro servidor...", "warning")
+
+        local server = findHopServer()
+
+        if not server then
+            notify(
+                "Server Hop",
+                "Não encontrei outro servidor com vaga agora.",
+                "danger"
+            )
+            return false
+        end
+
+        notify(
+            "Server Hop",
+            "Entrando em outro servidor (" ..
+                tostring(server.playing) .. "/" ..
+                tostring(server.maxPlayers) .. ")...",
+            "success"
+        )
+
+        local ok = pcall(function()
+            TeleportService:TeleportToPlaceInstance(
+                game.PlaceId,
+                server.id,
+                LocalPlayer
+            )
+        end)
+
+        if not ok then
+            notify("Server Hop", "Falha ao iniciar o teleport.", "danger")
+            return false
+        end
+
+        return true
+    end
+
+    local AutoHopToggle = toggleRow(
+        ServerHopSection,
+        "Auto Server Hop",
+        "Enquanto ativo, tenta trocar para outro servidor automaticamente.",
+        false,
+        function(state)
+            autoServerHop = state
+            autoServerHopToken += 1
+
+            local myToken = autoServerHopToken
+
+            if state then
+                notify("Auto Server Hop", "Ativado.", "success")
+
+                task.spawn(function()
+                    task.wait(1.5)
+
+                    while autoServerHop
+                    and myToken == autoServerHopToken do
+                        local startedTeleport = hopServerOnce()
+
+                        if startedTeleport then
+                            -- If teleport succeeds, this session will end.
+                            break
+                        end
+
+                        task.wait(HOP_RETRY_SECONDS)
+                    end
+                end)
+            else
+                notify("Auto Server Hop", "Desativado.", "warning")
+            end
+        end
+    )
+
+    local HopNowButton = actionButton(
+        ServerHopSection,
+        "Server Hop agora",
+        "Procura outro servidor com vaga e troca uma única vez.",
+        Theme.Accent2
+    )
+
+    HopNowButton.MouseButton1Click:Connect(function()
+        task.spawn(hopServerOnce)
+    end)
+end
 
 --------------------------------------------------------------------------------
 -- CHAT PAGE
@@ -3003,4 +3186,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12 MOBILE MINI] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.2 SERVERHOP] LOADED SUCCESSFULLY")
