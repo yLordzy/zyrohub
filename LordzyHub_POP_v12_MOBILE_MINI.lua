@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.4 SERVERHOP FIX] STARTING...")
+print("[Lordzy POP v12.5 EGG FILTER HOP] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1836,6 +1836,22 @@ local isMinimized = false
 local restoreHub
 
 
+
+-- Estado do filtro de eggs. getgenv ajuda alguns executores a preservar
+-- a seleção enquanto o script é recarregado.
+local LordzyHopState
+do
+    local env = (getgenv and getgenv()) or _G
+    env.LordzyHopState = env.LordzyHopState or {
+        filters = {
+            blackhole = false,
+            cherub = false,
+        },
+        eggHopEnabled = false,
+    }
+    LordzyHopState = env.LordzyHopState
+end
+
 --------------------------------------------------------------------------------
 -- RIDE A PET - SERVER HOP
 --------------------------------------------------------------------------------
@@ -1850,6 +1866,156 @@ do
     local autoServerHop = false
     local autoServerHopToken = 0
     local HOP_RETRY_SECONDS = 20
+
+    --------------------------------------------------------------------------
+    -- EGG FILTER SERVER HOP
+    --------------------------------------------------------------------------
+
+    local EggFilterSection = section(
+        RidePage,
+        "Egg Filter Hop",
+        "Escolha os eggs desejados. O hub troca de servidor até encontrar um deles."
+    )
+
+    local function normalizedEggName(name)
+        return tostring(name or ""):lower():gsub("[%s_%-]", "")
+    end
+
+    local function eggMatchesFilter(eggName, filterKey)
+        local normalized = normalizedEggName(eggName)
+
+        if filterKey == "blackhole" then
+            return string.find(normalized, "blackhole", 1, true) ~= nil
+        elseif filterKey == "cherub" then
+            -- cobre Cherub, Cherubi e variações de nome.
+            return string.find(normalized, "cherub", 1, true) ~= nil
+        end
+
+        return false
+    end
+
+    local function getSelectedEggFilters()
+        local selected = {}
+
+        if LordzyHopState.filters.blackhole then
+            selected[#selected + 1] = "blackhole"
+        end
+
+        if LordzyHopState.filters.cherub then
+            selected[#selected + 1] = "cherub"
+        end
+
+        return selected
+    end
+
+    local function getSelectedEggFilterNames()
+        local names = {}
+
+        if LordzyHopState.filters.blackhole then
+            names[#names + 1] = "Blackhole Egg"
+        end
+
+        if LordzyHopState.filters.cherub then
+            names[#names + 1] = "Cherub/Cherubi Egg"
+        end
+
+        return names
+    end
+
+    local function findWantedEggInCurrentServer()
+        if not RenderedEggsFolder then
+            return nil, nil
+        end
+
+        local selected = getSelectedEggFilters()
+        if #selected == 0 then
+            return nil, nil
+        end
+
+        for _, egg in ipairs(RenderedEggsFolder:GetChildren()) do
+            for _, filterKey in ipairs(selected) do
+                if eggMatchesFilter(egg.Name, filterKey) then
+                    return egg, filterKey
+                end
+            end
+        end
+
+        return nil, nil
+    end
+
+    local FilterStatus = Instance.new("Frame")
+    FilterStatus.Size = UDim2.new(1, 0, 0, 52)
+    FilterStatus.BackgroundColor3 = Theme.Surface2
+    FilterStatus.BorderSizePixel = 0
+    FilterStatus.Parent = EggFilterSection
+    uiCorner(FilterStatus, 11)
+    uiStroke(FilterStatus, Theme.Stroke, 1, 0.55)
+
+    local FilterStatusTitle = label(
+        FilterStatus,
+        "Filtro: nenhum egg selecionado",
+        9,
+        Theme.Text,
+        Enum.Font.GothamSemibold
+    )
+    FilterStatusTitle.Position = UDim2.new(0, 12, 0, 8)
+    FilterStatusTitle.Size = UDim2.new(1, -24, 0, 16)
+
+    local FilterStatusSub = label(
+        FilterStatus,
+        "Selecione pelo menos um egg abaixo.",
+        8,
+        Theme.Muted,
+        Enum.Font.Gotham
+    )
+    FilterStatusSub.Position = UDim2.new(0, 12, 0, 28)
+    FilterStatusSub.Size = UDim2.new(1, -24, 0, 14)
+
+    local function refreshEggFilterStatus()
+        local names = getSelectedEggFilterNames()
+
+        if #names == 0 then
+            FilterStatusTitle.Text = "Filtro: nenhum egg selecionado"
+            FilterStatusTitle.TextColor3 = Theme.Text
+            FilterStatusSub.Text = "Selecione pelo menos um egg abaixo."
+        else
+            FilterStatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
+            FilterStatusTitle.TextColor3 = Theme.Warning
+
+            local found = findWantedEggInCurrentServer()
+            if found then
+                FilterStatusSub.Text = "Encontrado neste servidor: " .. found.Name
+                FilterStatusSub.TextColor3 = Theme.Success
+            else
+                FilterStatusSub.Text = "Nenhum dos eggs selecionados neste servidor."
+                FilterStatusSub.TextColor3 = Theme.Muted
+            end
+        end
+    end
+
+    toggleRow(
+        EggFilterSection,
+        "Blackhole Egg",
+        "Considera o servidor válido quando encontrar um egg com Blackhole no nome.",
+        LordzyHopState.filters.blackhole == true,
+        function(state)
+            LordzyHopState.filters.blackhole = state
+            refreshEggFilterStatus()
+        end
+    )
+
+    toggleRow(
+        EggFilterSection,
+        "Cherub / Cherubi Egg",
+        "Aceita Cherub, Cherubi e outras variações que contenham Cherub.",
+        LordzyHopState.filters.cherub == true,
+        function(state)
+            LordzyHopState.filters.cherub = state
+            refreshEggFilterStatus()
+        end
+    )
+
+    refreshEggFilterStatus()
 
     local function executorRequest(url)
         -- Não adiciona parâmetros extras à URL da API do Roblox.
@@ -2101,6 +2267,132 @@ do
         return true
     end
 
+
+    local eggHopToken = 0
+    local eggHopBusy = false
+
+    local function stopEggHop(foundEgg)
+        LordzyHopState.eggHopEnabled = false
+        eggHopToken += 1
+        eggHopBusy = false
+
+        if foundEgg then
+            FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
+            FilterStatusTitle.TextColor3 = Theme.Success
+            FilterStatusSub.Text = "Server Hop parado neste servidor."
+
+            notify(
+                "Egg encontrado!",
+                foundEgg.Name .. " apareceu neste servidor. Server Hop parado.",
+                "success"
+            )
+
+            pcall(function()
+                updateEggESP(foundEgg)
+            end)
+        end
+    end
+
+    local function runEggFilterHop()
+        if eggHopBusy then
+            return
+        end
+
+        local selected = getSelectedEggFilters()
+        if #selected == 0 then
+            LordzyHopState.eggHopEnabled = false
+            notify(
+                "Egg Filter Hop",
+                "Selecione Blackhole Egg, Cherub/Cherubi Egg ou ambos primeiro.",
+                "warning"
+            )
+            return
+        end
+
+        eggHopBusy = true
+        eggHopToken += 1
+        local myToken = eggHopToken
+
+        task.spawn(function()
+            -- Dá tempo para RenderedEggs carregar ao entrar no servidor.
+            task.wait(2)
+
+            while LordzyHopState.eggHopEnabled and myToken == eggHopToken do
+                local foundEgg = findWantedEggInCurrentServer()
+
+                if foundEgg then
+                    stopEggHop(foundEgg)
+                    return
+                end
+
+                local names = getSelectedEggFilterNames()
+                FilterStatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
+                FilterStatusTitle.TextColor3 = Theme.Warning
+                FilterStatusSub.Text = "Não encontrado. Trocando de servidor..."
+
+                notify(
+                    "Egg Filter Hop",
+                    "Nenhum alvo encontrado. Procurando outro servidor...",
+                    "warning"
+                )
+
+                local started = hopServerOnce()
+                if started then
+                    -- A sessão atual deve terminar quando o teleport iniciar.
+                    -- Se o hub for auto-executado no novo servidor, o estado em
+                    -- getgenv pode ser reaproveitado pelo executor.
+                    return
+                end
+
+                task.wait(HOP_RETRY_SECONDS)
+            end
+
+            eggHopBusy = false
+        end)
+    end
+
+    toggleRow(
+        EggFilterSection,
+        "Auto Server Hop por Egg",
+        "Troca de servidor até encontrar qualquer egg marcado acima.",
+        LordzyHopState.eggHopEnabled == true,
+        function(state)
+            LordzyHopState.eggHopEnabled = state
+
+            if state then
+                local selected = getSelectedEggFilters()
+
+                if #selected == 0 then
+                    LordzyHopState.eggHopEnabled = false
+                    notify(
+                        "Egg Filter Hop",
+                        "Você precisa selecionar pelo menos um egg.",
+                        "warning"
+                    )
+                    return
+                end
+
+                local foundEgg = findWantedEggInCurrentServer()
+                if foundEgg then
+                    stopEggHop(foundEgg)
+                    return
+                end
+
+                runEggFilterHop()
+            else
+                eggHopToken += 1
+                eggHopBusy = false
+                refreshEggFilterStatus()
+                notify("Egg Filter Hop", "Desativado.", "warning")
+            end
+        end
+    )
+
+    -- Se o hub foi recarregado e o modo continuou marcado, verifica novamente.
+    if LordzyHopState.eggHopEnabled then
+        task.defer(runEggFilterHop)
+    end
+
     toggleRow(
         ServerHopSection,
         "Auto Server Hop",
@@ -2144,6 +2436,23 @@ do
     HopNowButton.MouseButton1Click:Connect(function()
         task.spawn(hopServerOnce)
     end)
+
+    if RenderedEggsFolder then
+        RenderedEggsFolder.ChildAdded:Connect(function(child)
+            if not LordzyHopState.eggHopEnabled then
+                return
+            end
+
+            task.wait(0.1)
+
+            for _, filterKey in ipairs(getSelectedEggFilters()) do
+                if eggMatchesFilter(child.Name, filterKey) then
+                    stopEggHop(child)
+                    break
+                end
+            end
+        end)
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -3313,4 +3622,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.4 SERVERHOP FIX] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.5 EGG FILTER HOP] LOADED SUCCESSFULLY")
