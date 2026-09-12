@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.6.1 VISIBLE EGG FILTER] STARTING...")
+print("[Lordzy POP v12.7 CHANGELOG + EGG FILTER] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -3692,4 +3692,115 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.6.1 VISIBLE EGG FILTER] LOADED SUCCESSFULLY")
+
+--------------------------------------------------------------------------------
+-- CHANGELOG v12.7 + ATALHO DIRETO PARA EGG FILTER
+--------------------------------------------------------------------------------
+do
+    local function goToEggFilter()
+        setPage("Ride", "Ride A Pet", "Egg Browser • Server Hop por Egg")
+
+        task.defer(function()
+            task.wait(0.12)
+
+            local pageTop = RidePage.AbsolutePosition.Y
+            local eggTop = EggBrowser.AbsolutePosition.Y
+            local currentY = RidePage.CanvasPosition.Y
+            local targetY = math.max(0, currentY + (eggTop - pageTop) - 10)
+
+            pcall(function()
+                RidePage.CanvasPosition = Vector2.new(0, targetY)
+            end)
+        end)
+    end
+
+    local ChangelogOverlay = Instance.new("Frame")
+    ChangelogOverlay.Name = "ChangelogOverlay_v127"
+    ChangelogOverlay.Size = UDim2.fromScale(1, 1)
+    ChangelogOverlay.BackgroundColor3 = Color3.fromRGB(4, 4, 8)
+    ChangelogOverlay.BackgroundTransparency = 0.22
+    ChangelogOverlay.BorderSizePixel = 0
+    ChangelogOverlay.ZIndex = 200
+    ChangelogOverlay.Parent = Main
+
+    local ChangelogCard = Instance.new("Frame")
+    ChangelogCard.Name = "ChangelogCard"
+    ChangelogCard.AnchorPoint = Vector2.new(0.5, 0.5)
+    ChangelogCard.Position = UDim2.fromScale(0.5, 0.5)
+    ChangelogCard.Size = UDim2.new(0.78, 0, 0, 300)
+    ChangelogCard.BackgroundColor3 = Theme.Surface
+    ChangelogCard.BorderSizePixel = 0
+    ChangelogCard.ZIndex = 201
+    ChangelogCard.Parent = ChangelogOverlay
+    uiCorner(ChangelogCard, 16)
+    uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
+
+    local Version = label(ChangelogCard, "NOVIDADES • v12.7", 9, Theme.Accent2, Enum.Font.GothamBold)
+    Version.Position = UDim2.new(0, 18, 0, 16)
+    Version.Size = UDim2.new(1, -36, 0, 18)
+    Version.ZIndex = 202
+
+    local Title = label(ChangelogCard, "Egg Filter Server Hop", 16, Theme.Text, Enum.Font.GothamBold)
+    Title.Position = UDim2.new(0, 18, 0, 39)
+    Title.Size = UDim2.new(1, -36, 0, 27)
+    Title.ZIndex = 202
+
+    local Desc = label(
+        ChangelogCard,
+        "Agora o filtro fica dentro do Egg Browser e você pode escolher quais eggs devem parar o Server Hop.",
+        9,
+        Theme.Muted,
+        Enum.Font.Gotham
+    )
+    Desc.Position = UDim2.new(0, 18, 0, 72)
+    Desc.Size = UDim2.new(1, -36, 0, 40)
+    Desc.TextWrapped = true
+    Desc.ZIndex = 202
+
+    local Changes = label(
+        ChangelogCard,
+        "✓ Blackhole Egg\n✓ Cherub / Cherubi Egg\n✓ Filtro integrado ao Egg Browser\n✓ Server Hop para quando encontrar um alvo\n✓ Atalho direto para a função",
+        10,
+        Theme.Text,
+        Enum.Font.GothamMedium
+    )
+    Changes.Position = UDim2.new(0, 18, 0, 121)
+    Changes.Size = UDim2.new(1, -36, 0, 94)
+    Changes.TextWrapped = true
+    Changes.TextYAlignment = Enum.TextYAlignment.Top
+    Changes.ZIndex = 202
+
+    local GoButton = Instance.new("TextButton")
+    GoButton.Name = "GoToEggFilter"
+    GoButton.Size = UDim2.new(1, -36, 0, 42)
+    GoButton.Position = UDim2.new(0, 18, 1, -58)
+    GoButton.BackgroundColor3 = Theme.Accent
+    GoButton.BorderSizePixel = 0
+    GoButton.Text = "IR PARA O EGG FILTER  →"
+    GoButton.TextColor3 = Color3.new(1, 1, 1)
+    GoButton.TextSize = 10
+    GoButton.Font = Enum.Font.GothamBold
+    GoButton.AutoButtonColor = false
+    GoButton.ZIndex = 202
+    GoButton.Parent = ChangelogCard
+    uiCorner(GoButton, 11)
+
+    GoButton.MouseEnter:Connect(function()
+        tw(GoButton, 0.14, {BackgroundColor3 = Theme.Accent2})
+    end)
+
+    GoButton.MouseLeave:Connect(function()
+        tw(GoButton, 0.14, {BackgroundColor3 = Theme.Accent})
+    end)
+
+    GoButton.MouseButton1Click:Connect(function()
+        ChangelogOverlay.Visible = false
+        goToEggFilter()
+    end)
+
+    -- Abre o changelog já com o hub pronto.
+    ChangelogOverlay.Visible = true
+end
+
+
+print("[Lordzy POP v12.7 CHANGELOG + EGG FILTER] LOADED SUCCESSFULLY")
