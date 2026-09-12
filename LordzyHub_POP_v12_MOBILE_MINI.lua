@@ -7,10 +7,11 @@ local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.3 PLACEID] STARTING...")
+print("[Lordzy POP v12.3.1 SERVERHOP FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1513,7 +1514,7 @@ do
     -- Decorative corner text, like a designed landing page.
     local FooterMark = label(
         PopRoot,
-        "POP MODE  /  v12.3 PLACEID",
+        "POP MODE  /  v12.3.1",
         7,
         Theme.Dim,
         Enum.Font.GothamBold,
@@ -1848,24 +1849,64 @@ do
 
     local autoServerHop = false
     local autoServerHopToken = 0
-    local HOP_RETRY_SECONDS = 25
+    local HOP_RETRY_SECONDS = 20
+
+    local function executorRequest(url)
+        -- Primeiro tenta HttpGet, que funciona na maioria dos executores.
+        local ok, body = pcall(function()
+            return game:HttpGet(url, true)
+        end)
+
+        if ok and type(body) == "string" and #body > 10 then
+            return body
+        end
+
+        -- Fallback para executores que expõem request/http_request.
+        local env = (getgenv and getgenv()) or _G
+        local req = env.request or env.http_request
+
+        if not req and env.syn then
+            req = env.syn.request
+        end
+
+        if type(req) == "function" then
+            local reqOk, response = pcall(req, {
+                Url = url,
+                Method = "GET",
+                Headers = {
+                    ["Cache-Control"] = "no-cache"
+                }
+            })
+
+            if reqOk and type(response) == "table" then
+                local status = tonumber(response.StatusCode or response.Status)
+                local responseBody = response.Body or response.body
+
+                if (not status or (status >= 200 and status < 300))
+                and type(responseBody) == "string" then
+                    return responseBody
+                end
+            end
+        end
+
+        return nil
+    end
 
     local function fetchPublicServers(cursor)
-        local placeId = game.PlaceId
         local url = "https://games.roblox.com/v1/games/" ..
-            tostring(placeId) ..
-            "/servers/Public?sortOrder=Asc&limit=100"
+            tostring(game.PlaceId) ..
+            "/servers/Public?sortOrder=Asc&excludeFullGames=true&limit=100"
 
         if cursor and cursor ~= "" then
             url = url .. "&cursor=" .. HttpService:UrlEncode(cursor)
         end
 
-        local ok, body = pcall(function()
-            return game:HttpGet(url)
-        end)
+        -- Evita receber uma resposta em cache em alguns executores.
+        url = url .. "&_=" .. tostring(math.floor(os.clock() * 1000))
 
-        if not ok or type(body) ~= "string" then
-            return nil
+        local body = executorRequest(url)
+        if not body then
+            return nil, "HTTP_REQUEST_FAILED"
         end
 
         local decodeOk, decoded = pcall(function()
@@ -1873,71 +1914,109 @@ do
         end)
 
         if not decodeOk or type(decoded) ~= "table" then
-            return nil
+            return nil, "JSON_DECODE_FAILED"
         end
 
-        return decoded
+        return decoded, nil
     end
 
     local function findHopServer()
         local cursor = nil
         local checkedPages = 0
         local candidates = {}
+        local lastError = nil
 
         repeat
             checkedPages += 1
-            local page = fetchPublicServers(cursor)
 
+            local page, fetchError = fetchPublicServers(cursor)
             if not page then
+                lastError = fetchError
                 break
             end
 
             if type(page.data) == "table" then
                 for _, server in ipairs(page.data) do
-                    local serverId = server.id
+                    local serverId = tostring(server.id or "")
                     local playing = tonumber(server.playing) or 0
                     local maxPlayers = tonumber(server.maxPlayers) or 0
 
-                    if serverId
+                    if serverId ~= ""
                     and serverId ~= game.JobId
                     and maxPlayers > 0
                     and playing < maxPlayers then
-                        table.insert(candidates, {
+                        candidates[#candidates + 1] = {
                             id = serverId,
                             playing = playing,
                             maxPlayers = maxPlayers
-                        })
+                        }
                     end
                 end
             end
 
             cursor = page.nextPageCursor
-        until not cursor or cursor == "" or checkedPages >= 3 or #candidates >= 12
+        until not cursor
+            or cursor == ""
+            or checkedPages >= 5
+            or #candidates >= 20
 
         if #candidates == 0 then
-            return nil
+            return nil, lastError or "NO_SERVERS"
         end
 
-        -- Prefer a server with fewer players, but not necessarily empty.
+        -- Servidores menos cheios primeiro.
         table.sort(candidates, function(a, b)
+            if a.playing == b.playing then
+                return a.id < b.id
+            end
             return a.playing < b.playing
         end)
 
-        local poolSize = math.min(5, #candidates)
-        return candidates[math.random(1, poolSize)]
+        -- Escolhe aleatoriamente entre os primeiros para não cair
+        -- sempre no mesmo servidor.
+        local poolSize = math.min(8, #candidates)
+        return candidates[math.random(1, poolSize)], nil
     end
 
+    local hopBusy = false
+
     local function hopServerOnce()
+        if hopBusy then
+            notify("Server Hop", "Já estou procurando um servidor.", "warning")
+            return false
+        end
+
+        hopBusy = true
         notify("Server Hop", "Procurando outro servidor...", "warning")
 
-        local server = findHopServer()
+        local server, reason = findHopServer()
 
         if not server then
-            notify(
-                "Server Hop",
-                "Não encontrei outro servidor com vaga agora.",
-                "danger"
-            )
+            hopBusy = false
+
+            if reason == "HTTP_REQUEST_FAILED" then
+                notify(
+                    "Server Hop",
+                    "Não consegui acessar a lista de servidores. Veja o console.",
+                    "danger"
+                )
+                warn("[Lordzy ServerHop] Falha ao acessar a API de servidores.")
+            elseif reason == "JSON_DECODE_FAILED" then
+                notify(
+                    "Server Hop",
+                    "A lista de servidores veio em formato inválido.",
+                    "danger"
+                )
+                warn("[Lordzy ServerHop] Falha ao interpretar JSON da API.")
+            else
+                notify(
+                    "Server Hop",
+                    "Nenhum outro servidor com vaga foi encontrado.",
+                    "danger"
+                )
+                warn("[Lordzy ServerHop] Nenhum candidato. JobId atual:", game.JobId)
+            end
+
             return false
         end
 
@@ -1949,7 +2028,14 @@ do
             "success"
         )
 
-        local ok = pcall(function()
+        print(
+            "[Lordzy ServerHop] Indo para:",
+            server.id,
+            "Players:",
+            server.playing .. "/" .. server.maxPlayers
+        )
+
+        local ok, teleportError = pcall(function()
             TeleportService:TeleportToPlaceInstance(
                 game.PlaceId,
                 server.id,
@@ -1958,14 +2044,26 @@ do
         end)
 
         if not ok then
-            notify("Server Hop", "Falha ao iniciar o teleport.", "danger")
+            hopBusy = false
+            warn("[Lordzy ServerHop] Teleport falhou:", teleportError)
+            notify(
+                "Server Hop",
+                "O servidor foi encontrado, mas o teleport falhou.",
+                "danger"
+            )
             return false
         end
+
+        -- Caso o executor/jogo demore para iniciar o teleport,
+        -- libera o botão novamente depois de alguns segundos.
+        task.delay(8, function()
+            hopBusy = false
+        end)
 
         return true
     end
 
-    local AutoHopToggle = toggleRow(
+    toggleRow(
         ServerHopSection,
         "Auto Server Hop",
         "Enquanto ativo, tenta trocar para outro servidor automaticamente.",
@@ -1973,21 +2071,19 @@ do
         function(state)
             autoServerHop = state
             autoServerHopToken += 1
-
             local myToken = autoServerHopToken
 
             if state then
                 notify("Auto Server Hop", "Ativado.", "success")
 
                 task.spawn(function()
-                    task.wait(1.5)
+                    task.wait(1)
 
                     while autoServerHop
                     and myToken == autoServerHopToken do
-                        local startedTeleport = hopServerOnce()
+                        local started = hopServerOnce()
 
-                        if startedTeleport then
-                            -- If teleport succeeds, this session will end.
+                        if started then
                             break
                         end
 
@@ -3179,4 +3275,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.3 PLACEID] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.3.1 SERVERHOP FIX] LOADED SUCCESSFULLY")
