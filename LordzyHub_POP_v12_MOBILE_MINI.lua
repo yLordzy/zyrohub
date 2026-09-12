@@ -10,7 +10,7 @@ local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.2 SERVERHOP] STARTING...")
+print("[Lordzy POP v12.3 PLACEID] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -20,17 +20,10 @@ local TargetParent = CoreGui:FindFirstChild("RobloxGui") or LocalPlayer:WaitForC
 -- Folder objetivo
 local RenderedEggsFolder = Workspace:WaitForChild("RenderedEggs", 10) or Workspace:FindFirstChild("RenderedEggs")
 
+local RIDE_A_PET_PLACE_ID = 124216119978534
+
 local function isRideAPetGame()
-    local eggs = Workspace:FindFirstChild("RenderedEggs")
-    local plots = Workspace:FindFirstChild("Plots")
-
-    -- Ride A Pet-specific world structure.
-    if eggs and plots then
-        return true
-    end
-
-    -- Fallback: if the egg folder exists, treat it as the supported game.
-    return eggs ~= nil
+    return game.PlaceId == RIDE_A_PET_PLACE_ID
 end
 
 local IS_RIDE_A_PET = isRideAPetGame()
@@ -1520,7 +1513,7 @@ do
     -- Decorative corner text, like a designed landing page.
     local FooterMark = label(
         PopRoot,
-        "POP MODE  /  v12.2 SERVERHOP",
+        "POP MODE  /  v12.3 PLACEID",
         7,
         Theme.Dim,
         Enum.Font.GothamBold,
@@ -3186,4 +3179,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.2 SERVERHOP] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.3 PLACEID] LOADED SUCCESSFULLY")
