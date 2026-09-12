@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.3.1 SERVERHOP FIX] STARTING...")
+print("[Lordzy POP v12.4 SERVERHOP FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1852,21 +1852,37 @@ do
     local HOP_RETRY_SECONDS = 20
 
     local function executorRequest(url)
-        -- Primeiro tenta HttpGet, que funciona na maioria dos executores.
+        -- Não adiciona parâmetros extras à URL da API do Roblox.
+        -- Alguns endpoints respondem com JSON de erro quando recebem
+        -- parâmetros desconhecidos, o que antes parecia "0 servidores".
+
+        local function validBody(body)
+            return type(body) == "string" and #body > 2
+        end
+
+        -- Método 1: HttpGet do ambiente/executor.
         local ok, body = pcall(function()
             return game:HttpGet(url, true)
         end)
 
-        if ok and type(body) == "string" and #body > 10 then
-            return body
+        if ok and validBody(body) then
+            return body, nil
         end
 
-        -- Fallback para executores que expõem request/http_request.
+        -- Método 2: request/http_request/syn.request/http.request/fluxus.request.
         local env = (getgenv and getgenv()) or _G
-        local req = env.request or env.http_request
+        local req = nil
 
-        if not req and env.syn then
+        if type(env.request) == "function" then
+            req = env.request
+        elseif type(env.http_request) == "function" then
+            req = env.http_request
+        elseif env.syn and type(env.syn.request) == "function" then
             req = env.syn.request
+        elseif env.http and type(env.http.request) == "function" then
+            req = env.http.request
+        elseif env.fluxus and type(env.fluxus.request) == "function" then
+            req = env.fluxus.request
         end
 
         if type(req) == "function" then
@@ -1874,22 +1890,26 @@ do
                 Url = url,
                 Method = "GET",
                 Headers = {
+                    ["Accept"] = "application/json",
                     ["Cache-Control"] = "no-cache"
                 }
             })
 
             if reqOk and type(response) == "table" then
-                local status = tonumber(response.StatusCode or response.Status)
+                local status = tonumber(response.StatusCode or response.Status or response.status_code)
                 local responseBody = response.Body or response.body
 
-                if (not status or (status >= 200 and status < 300))
-                and type(responseBody) == "string" then
-                    return responseBody
+                if status and (status < 200 or status >= 300) then
+                    return nil, "HTTP_STATUS_" .. tostring(status)
+                end
+
+                if validBody(responseBody) then
+                    return responseBody, nil
                 end
             end
         end
 
-        return nil
+        return nil, "HTTP_REQUEST_FAILED"
     end
 
     local function fetchPublicServers(cursor)
@@ -1901,12 +1921,9 @@ do
             url = url .. "&cursor=" .. HttpService:UrlEncode(cursor)
         end
 
-        -- Evita receber uma resposta em cache em alguns executores.
-        url = url .. "&_=" .. tostring(math.floor(os.clock() * 1000))
-
-        local body = executorRequest(url)
+        local body, requestError = executorRequest(url)
         if not body then
-            return nil, "HTTP_REQUEST_FAILED"
+            return nil, requestError or "HTTP_REQUEST_FAILED"
         end
 
         local decodeOk, decoded = pcall(function()
@@ -1914,7 +1931,21 @@ do
         end)
 
         if not decodeOk or type(decoded) ~= "table" then
+            warn("[Lordzy ServerHop] JSON inválido. Body:", tostring(body):sub(1, 180))
             return nil, "JSON_DECODE_FAILED"
+        end
+
+        -- A API também devolve erros como JSON. Não tratar isso como lista vazia.
+        if type(decoded.errors) == "table" and #decoded.errors > 0 then
+            local firstError = decoded.errors[1]
+            local message = type(firstError) == "table" and firstError.message or tostring(firstError)
+            warn("[Lordzy ServerHop] API retornou erro:", tostring(message))
+            return nil, "ROBLOX_API_ERROR"
+        end
+
+        if type(decoded.data) ~= "table" then
+            warn("[Lordzy ServerHop] Resposta sem campo data. Body:", tostring(body):sub(1, 180))
+            return nil, "INVALID_SERVER_RESPONSE"
         end
 
         return decoded, nil
@@ -1994,13 +2025,13 @@ do
         if not server then
             hopBusy = false
 
-            if reason == "HTTP_REQUEST_FAILED" then
+            if reason == "HTTP_REQUEST_FAILED" or string.find(tostring(reason), "HTTP_STATUS_", 1, true) then
                 notify(
                     "Server Hop",
-                    "Não consegui acessar a lista de servidores. Veja o console.",
+                    "O executor não conseguiu acessar a API de servidores (" .. tostring(reason) .. ").",
                     "danger"
                 )
-                warn("[Lordzy ServerHop] Falha ao acessar a API de servidores.")
+                warn("[Lordzy ServerHop] Falha HTTP:", reason)
             elseif reason == "JSON_DECODE_FAILED" then
                 notify(
                     "Server Hop",
@@ -2008,6 +2039,13 @@ do
                     "danger"
                 )
                 warn("[Lordzy ServerHop] Falha ao interpretar JSON da API.")
+            elseif reason == "ROBLOX_API_ERROR" or reason == "INVALID_SERVER_RESPONSE" then
+                notify(
+                    "Server Hop",
+                    "A API do Roblox respondeu com erro. Veja o console.",
+                    "danger"
+                )
+                warn("[Lordzy ServerHop] Resposta da API inválida:", reason)
             else
                 notify(
                     "Server Hop",
@@ -3275,4 +3313,4 @@ tw(Shadow, 0.38, {
 }, Enum.EasingStyle.Back)
 
 
-print("[Lordzy POP v12.3.1 SERVERHOP FIX] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.4 SERVERHOP FIX] LOADED SUCCESSFULLY")
