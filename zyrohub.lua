@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[ZYRO HUB v12.17 TONGUE ESCAPE] STARTING...")
+print("[ZYRO HUB v12.17.1 TONGUE DETECTOR FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -28,12 +28,31 @@ local function isRideAPetGame()
     return game.PlaceId == RIDE_A_PET_PLACE_ID
 end
 
+local function hasTongueEscapeRemotes()
+    local events = ReplicatedStorage:FindFirstChild("Events")
+    if not events then
+        return false
+    end
+
+    return events:FindFirstChild("AddTongue") ~= nil
+        or events:FindFirstChild("RequestRebirth") ~= nil
+end
+
 local function isTongueEscapeGame()
     return game.PlaceId == TONGUE_ESCAPE_PLACE_ID
+        or game.GameId == TONGUE_ESCAPE_PLACE_ID
+        or hasTongueEscapeRemotes()
 end
 
 local IS_RIDE_A_PET = isRideAPetGame()
 local IS_TONGUE_ESCAPE = isTongueEscapeGame()
+
+print(
+    "[ZyroHub Detector] PlaceId:", game.PlaceId,
+    "GameId:", game.GameId,
+    "Ride:", IS_RIDE_A_PET,
+    "Tongue:", IS_TONGUE_ESCAPE
+)
 
 
 -- Almacenamiento de Highlights y ESTADOS
@@ -954,6 +973,22 @@ local SettingsNav = makeNavButton("Settings", "Settings", "⚙", 5)
 RideNav.Visible = IS_RIDE_A_PET
 TongueNav.Visible = IS_TONGUE_ESCAPE
 
+local function refreshGameTabs()
+    IS_RIDE_A_PET = isRideAPetGame()
+    IS_TONGUE_ESCAPE = isTongueEscapeGame()
+
+    RideNav.Visible = IS_RIDE_A_PET
+    TongueNav.Visible = IS_TONGUE_ESCAPE
+
+    if IS_TONGUE_ESCAPE then
+        print("[ZyroHub Detector] Tongue Escape reconhecido. Aba liberada.")
+    end
+end
+
+refreshGameTabs()
+
+-- Alguns jogos criam os remotes alguns segundos depois do carregamento.
+
 local function setPage(name, titleText, subtitleText)
     if activePage == name then return end
     activePage = name
@@ -1001,6 +1036,27 @@ end)
 
 SettingsNav.MouseButton1Click:Connect(function()
     setPage("Settings", "Settings", "Preferências do hub")
+end)
+
+-- Revalida o jogo depois da UI estar pronta, caso os remotes tenham carregado tarde.
+task.spawn(function()
+    for _ = 1, 20 do
+        task.wait(0.5)
+
+        local wasTongue = IS_TONGUE_ESCAPE
+        refreshGameTabs()
+
+        if IS_TONGUE_ESCAPE then
+            if not wasTongue then
+                notify("ZyroHub", "Tongue Escape detectado. Aba liberada.", "success")
+            end
+
+            if activePage == "Home" or activePage == "Chat" then
+                setPage("Tongue", "Tongue Escape", "Farm, Auto Tongue e Auto Rebirth")
+            end
+            break
+        end
+    end
 end)
 
 for _, data in pairs(navButtons) do
@@ -4357,6 +4413,8 @@ end
 -- OPEN ANIMATION
 --------------------------------------------------------------------------------
 
+refreshGameTabs()
+
 if IS_MOBILE then
     if IS_RIDE_A_PET then
         setPage("Ride", "Ride A Pet", "Modo mobile")
@@ -4450,12 +4508,12 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.17", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17.1", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Multi-Game • Tongue Escape", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Tongue Escape • Detector Fix", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
@@ -4518,4 +4576,4 @@ do
 end
 
 
-print("[ZYRO HUB v12.17 TONGUE ESCAPE] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17.1 TONGUE DETECTOR FIX] LOADED SUCCESSFULLY")
