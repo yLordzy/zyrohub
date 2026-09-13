@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.13.1 LOOP REWORK] STARTING...")
+print("[Lordzy POP v12.14 FORCE HOP AFTER COLLECT] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -2703,51 +2703,92 @@ do
         local myToken = eggHopToken
 
         task.spawn(function()
-            -- Tempo para os eggs do servidor atual aparecerem.
-            task.wait(2)
+            local okLoop, loopErr = pcall(function()
+                task.wait(2)
 
-            while LordzyHopState.eggHopEnabled and myToken == eggHopToken do
+                if not LordzyHopState.eggHopEnabled or myToken ~= eggHopToken then
+                    return
+                end
+
                 local foundEgg = findWantedEggInCurrentServer()
 
                 if foundEgg then
-                    -- Coleta de forma SEQUENCIAL no mesmo loop.
-                    -- Quando terminar, volta aqui e procura o próximo alvo.
+                    print("[ZyroHub EggHop] Alvo encontrado:", foundEgg.Name)
+
+                    -- Coleta e retorna para a base.
                     collectFoundTargetEgg(foundEgg)
 
                     if not LordzyHopState.eggHopEnabled or myToken ~= eggHopToken then
-                        break
+                        return
                     end
 
-                    FilterStatusSub.Text = "Procurando outro alvo neste servidor..."
-                    task.wait(1)
-                else
-                    local names = getSelectedEggFilterNames()
-                    local preview = table.concat(names, " + ")
-                    if #preview > 75 then
-                        preview = preview:sub(1, 72) .. "..."
-                    end
-
-                    FilterStatusTitle.Text = "PROCURANDO: " .. preview
-                    FilterStatusTitle.TextColor3 = Theme.Warning
-                    FilterStatusSub.Text = "Nenhum alvo disponível. Fazendo Server Hop..."
-                    FilterStatusSub.TextColor3 = Theme.Muted
+                    -- IMPORTANTE:
+                    -- Depois de coletar, NÃO tenta reutilizar RenderedEggs neste servidor.
+                    -- O jogo pode manter/recriar uma cópia visual do ovo já pego.
+                    -- Faz Server Hop direto para continuar a farm.
+                    FilterStatusTitle.Text = "COLETADO: " .. tostring(foundEgg.Name)
+                    FilterStatusTitle.TextColor3 = Theme.Success
+                    FilterStatusSub.Text = "Coletado. Indo para outro servidor..."
+                    FilterStatusSub.TextColor3 = Theme.Warning
 
                     if LordzyHopConfig and LordzyHopConfig.Save then
                         pcall(LordzyHopConfig.Save)
                     end
 
-                    print("[ZyroHub EggHop] Nenhum alvo restante - iniciando Server Hop")
+                    print("[ZyroHub EggHop] Coleta concluída - forçando Server Hop")
+
+                    task.wait(0.7)
 
                     local started = hopServerOnce()
-                    if started then
-                        -- O próximo servidor recarrega a config e retoma.
-                        eggHopBusy = false
-                        return
+                    if not started then
+                        -- Se a API falhar, tenta de novo sem desligar o AutoHop.
+                        print("[ZyroHub EggHop] Hop falhou; nova tentativa em", HOP_RETRY_SECONDS, "s")
+                        task.wait(HOP_RETRY_SECONDS)
+
+                        if LordzyHopState.eggHopEnabled and myToken == eggHopToken then
+                            eggHopBusy = false
+                            runEggFilterHop()
+                            return
+                        end
                     end
 
-                    -- Se a API falhar, tenta novamente sem desligar o modo.
-                    task.wait(HOP_RETRY_SECONDS)
+                    return
                 end
+
+                -- Nenhum alvo neste servidor: troca normalmente.
+                local names = getSelectedEggFilterNames()
+                local preview = table.concat(names, " + ")
+                if #preview > 75 then
+                    preview = preview:sub(1, 72) .. "..."
+                end
+
+                FilterStatusTitle.Text = "PROCURANDO: " .. preview
+                FilterStatusTitle.TextColor3 = Theme.Warning
+                FilterStatusSub.Text = "Nenhum alvo neste servidor. Fazendo Server Hop..."
+                FilterStatusSub.TextColor3 = Theme.Muted
+
+                if LordzyHopConfig and LordzyHopConfig.Save then
+                    pcall(LordzyHopConfig.Save)
+                end
+
+                print("[ZyroHub EggHop] Nenhum alvo - Server Hop")
+
+                local started = hopServerOnce()
+                if not started then
+                    task.wait(HOP_RETRY_SECONDS)
+
+                    if LordzyHopState.eggHopEnabled and myToken == eggHopToken then
+                        eggHopBusy = false
+                        runEggFilterHop()
+                        return
+                    end
+                end
+            end)
+
+            if not okLoop then
+                warn("[ZyroHub EggHop] ERRO NO LOOP:", tostring(loopErr))
+                FilterStatusSub.Text = "Erro no loop. Tentando novamente..."
+                FilterStatusSub.TextColor3 = Theme.Warning
             end
 
             eggHopBusy = false
@@ -4066,19 +4107,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.13.1", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.14", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Loop Contínuo Refeito", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Server Hop Forçado Após Coleta", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Refeito o fluxo do Egg Hop: coleta, retorna para a base e continua no MESMO loop. Se não existir outro alvo disponível, faz Server Hop imediatamente.",
+        "Depois de coletar qualquer ALVO, o hub agora força Server Hop imediatamente. Ele não depende mais do RenderedEggs do servidor atual, evitando ficar preso em ovos fantasmas.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4090,7 +4131,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Loop único sem reinício recursivo\n✓ Coleta e volta para a base\n✓ Ignora o egg já coletado\n✓ Procura o próximo alvo\n✓ Server Hop quando nenhum alvo resta",
+        "✓ Coleta o ALVO\n✓ Volta para a base\n✓ Server Hop obrigatório após coleta\n✓ Ignora RenderedEggs fantasma\n✓ Retry automático se o hop falhar",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4134,4 +4175,4 @@ do
 end
 
 
-print("[Lordzy POP v12.13.1 LOOP REWORK] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.14 FORCE HOP AFTER COLLECT] LOADED SUCCESSFULLY")
