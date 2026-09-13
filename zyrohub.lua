@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.13 CONTINUOUS EGG HOP] STARTING...")
+print("[Lordzy POP v12.13.1 LOOP REWORK] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -2620,124 +2620,66 @@ do
     local eggHopBusy = false
 
     local autoCollectBusy = false
-    local runEggFilterHop
 
     local function collectFoundTargetEgg(foundEgg)
         if autoCollectBusy or not foundEgg or not foundEgg.Parent then
-            return
+            return false
         end
 
         autoCollectBusy = true
         local eggName = tostring(foundEgg.Name)
 
-        -- Desde este ponto, esta instância não pode mais ser considerada
-        -- um alvo disponível, mesmo se continuar aparecendo em RenderedEggs.
+        -- Assim que começamos a coletar, a mesma instância deixa de ser
+        -- considerada disponível, mesmo que continue em RenderedEggs.
         markEggAsCollected(foundEgg)
 
-        -- Watchdog independente: mesmo que alguma interação trave,
-        -- força o retorno à base depois de alguns segundos.
-        task.delay(4.6, function()
-            if autoCollectBusy then
-                pcall(teleportToHomePlot)
-                FilterStatusTitle.Text = "COLETADO: " .. eggName
-                FilterStatusTitle.TextColor3 = Theme.Success
-                FilterStatusSub.Text = "Ovo coletado. Continuando a busca por outros alvos..."
-                FilterStatusSub.TextColor3 = Theme.Success
-                notify(
-                    "Egg Filter Hop",
-                    eggName .. " coletado. Retorno concluído; continuando busca.",
-                    "success"
-                )
-                autoCollectBusy = false
+        FilterStatusTitle.Text = "ENCONTRADO: " .. eggName
+        FilterStatusTitle.TextColor3 = Theme.Success
+        FilterStatusSub.Text = "Pegando o egg..."
 
-                if LordzyHopState.eggHopEnabled then
-                    task.delay(0.8, function()
-                        if LordzyHopState.eggHopEnabled then
-                            runEggFilterHop()
-                        end
-                    end)
-                end
-            end
+        notify(
+            "Egg encontrado!",
+            eggName .. " apareceu. Indo coletar.",
+            "success"
+        )
+
+        local ok, err = pcall(function()
+            teleportToModel(foundEgg)
+            task.wait(0.40)
+
+            -- Método de coleta do Ride A Pet.
+            holdEKey(3)
+            task.wait(0.20)
+
+            -- Volta para a base SEM depender do egg sumir de RenderedEggs.
+            teleportToHomePlot()
+            task.wait(0.65)
         end)
 
-        task.spawn(function()
-            local ok, err = pcall(function()
-                notify(
-                    "Egg encontrado!",
-                    "Indo pegar " .. eggName .. "...",
-                    "success"
-                )
-
-                teleportToModel(foundEgg)
-                task.wait(0.35)
-
-                -- No Ride A Pet a coleta principal é segurando E.
-                -- Depois disso voltamos imediatamente; não ficamos presos
-                -- tentando interagir novamente com um egg que já está na mão.
-                holdEKey(3)
-                task.wait(0.15)
-
-                pcall(teleportToHomePlot)
-
-                FilterStatusTitle.Text = "COLETADO: " .. eggName
-                FilterStatusTitle.TextColor3 = Theme.Success
-                FilterStatusSub.Text = "Ovo coletado. Continuando a busca por outros alvos..."
-                FilterStatusSub.TextColor3 = Theme.Success
-
-                notify(
-                    "Egg Filter Hop",
-                    eggName .. " coletado. Continuando a busca...",
-                    "success"
-                )
-            end)
-
-            if not ok then
-                warn("[ZyroHub AutoCollect] Falha:", tostring(err))
-                pcall(teleportToHomePlot)
-            end
-
-            autoCollectBusy = false
-
-            -- Continua a caça depois de voltar para a base.
-            if LordzyHopState.eggHopEnabled then
-                task.delay(0.8, function()
-                    if LordzyHopState.eggHopEnabled then
-                        runEggFilterHop()
-                    end
-                end)
-            end
-        end)
-    end
-
-    local function handleFoundEgg(foundEgg)
-        -- NÃO desliga o Auto Server Hop aqui.
-        -- A busca deve continuar depois da coleta.
-        eggHopBusy = false
-
-        if LordzyHopConfig and LordzyHopConfig.Save then
-            pcall(LordzyHopConfig.Save)
+        if not ok then
+            warn("[ZyroHub AutoCollect] Falha durante coleta:", tostring(err))
+            pcall(teleportToHomePlot)
+            task.wait(0.5)
         end
 
-        if foundEgg then
-            FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
-            FilterStatusTitle.TextColor3 = Theme.Success
-            FilterStatusSub.Text = "Pegando o egg e voltando para a base..."
+        FilterStatusTitle.Text = "COLETADO: " .. eggName
+        FilterStatusTitle.TextColor3 = Theme.Success
+        FilterStatusSub.Text = "Coletado. Continuando a busca..."
+        FilterStatusSub.TextColor3 = Theme.Success
 
-            notify(
-                "Egg encontrado!",
-                foundEgg.Name .. " apareceu. Indo pegar e continuar a busca.",
-                "success"
-            )
+        notify(
+            "Egg Filter Hop",
+            eggName .. " coletado. Continuando a busca...",
+            "success"
+        )
 
-            pcall(function()
-                updateEggESP(foundEgg)
-            end)
+        print("[ZyroHub EggHop] Coletado:", eggName, "- continuando loop")
 
-            collectFoundTargetEgg(foundEgg)
-        end
+        autoCollectBusy = false
+        return true
     end
 
-    runEggFilterHop = function()
+    local function runEggFilterHop()
         if eggHopBusy then
             return
         end
@@ -2761,40 +2703,51 @@ do
         local myToken = eggHopToken
 
         task.spawn(function()
-            -- Dá tempo para RenderedEggs carregar ao entrar no servidor.
+            -- Tempo para os eggs do servidor atual aparecerem.
             task.wait(2)
 
             while LordzyHopState.eggHopEnabled and myToken == eggHopToken do
                 local foundEgg = findWantedEggInCurrentServer()
 
                 if foundEgg then
-                    handleFoundEgg(foundEgg)
-                    return
+                    -- Coleta de forma SEQUENCIAL no mesmo loop.
+                    -- Quando terminar, volta aqui e procura o próximo alvo.
+                    collectFoundTargetEgg(foundEgg)
+
+                    if not LordzyHopState.eggHopEnabled or myToken ~= eggHopToken then
+                        break
+                    end
+
+                    FilterStatusSub.Text = "Procurando outro alvo neste servidor..."
+                    task.wait(1)
+                else
+                    local names = getSelectedEggFilterNames()
+                    local preview = table.concat(names, " + ")
+                    if #preview > 75 then
+                        preview = preview:sub(1, 72) .. "..."
+                    end
+
+                    FilterStatusTitle.Text = "PROCURANDO: " .. preview
+                    FilterStatusTitle.TextColor3 = Theme.Warning
+                    FilterStatusSub.Text = "Nenhum alvo disponível. Fazendo Server Hop..."
+                    FilterStatusSub.TextColor3 = Theme.Muted
+
+                    if LordzyHopConfig and LordzyHopConfig.Save then
+                        pcall(LordzyHopConfig.Save)
+                    end
+
+                    print("[ZyroHub EggHop] Nenhum alvo restante - iniciando Server Hop")
+
+                    local started = hopServerOnce()
+                    if started then
+                        -- O próximo servidor recarrega a config e retoma.
+                        eggHopBusy = false
+                        return
+                    end
+
+                    -- Se a API falhar, tenta novamente sem desligar o modo.
+                    task.wait(HOP_RETRY_SECONDS)
                 end
-
-                local names = getSelectedEggFilterNames()
-                FilterStatusTitle.Text = "Procurando: " .. table.concat(names, " + ")
-                FilterStatusTitle.TextColor3 = Theme.Warning
-                FilterStatusSub.Text = "Não encontrado. Trocando de servidor..."
-
-                notify(
-                    "Egg Filter Hop",
-                    "Nenhum alvo encontrado. Procurando outro servidor...",
-                    "warning"
-                )
-
-                -- Salva antes do teleport. Assim o próximo servidor sabe
-                -- quais ovos procurar e que a busca ainda está ativa.
-                if LordzyHopConfig and LordzyHopConfig.Save then
-                    pcall(LordzyHopConfig.Save)
-                end
-
-                local started = hopServerOnce()
-                if started then
-                    return
-                end
-
-                task.wait(HOP_RETRY_SECONDS)
             end
 
             eggHopBusy = false
@@ -2829,12 +2782,8 @@ do
                     return
                 end
 
-                local foundEgg = findWantedEggInCurrentServer()
-                if foundEgg then
-                    stopEggHop(foundEgg)
-                    return
-                end
-
+                -- Sempre inicia o loop principal. Ele mesmo cuida de
+                -- coletar qualquer alvo já presente e depois continuar/hopar.
                 runEggFilterHop()
             else
                 eggHopToken += 1
@@ -2903,22 +2852,8 @@ do
         task.spawn(hopServerOnce)
     end)
 
-    if RenderedEggsFolder then
-        RenderedEggsFolder.ChildAdded:Connect(function(child)
-            if not LordzyHopState.eggHopEnabled then
-                return
-            end
-
-            task.wait(0.1)
-
-            for _, filterKey in ipairs(getSelectedEggFilters()) do
-                if eggMatchesFilter(child.Name, filterKey) then
-                    stopEggHop(child)
-                    break
-                end
-            end
-        end)
-    end
+    -- A detecção de alvos é centralizada no loop do Egg Hop.
+    -- Isso evita duas rotinas tentando coletar/hopar ao mesmo tempo.
 end
 
 --------------------------------------------------------------------------------
@@ -4131,19 +4066,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.13", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.13.1", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Coleta Contínua + Server Hop", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Loop Contínuo Refeito", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Agora pegar um egg não desliga mais a caça. Depois de coletar e voltar para a base, o hub continua procurando outros alvos e faz Server Hop novamente quando necessário.",
+        "Refeito o fluxo do Egg Hop: coleta, retorna para a base e continua no MESMO loop. Se não existir outro alvo disponível, faz Server Hop imediatamente.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4155,7 +4090,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Coleta não desliga mais o Auto Hop\n✓ Ovo coletado continua ignorado\n✓ Volta para a base\n✓ Retoma a busca automaticamente\n✓ Faz Server Hop novamente se não houver outro alvo",
+        "✓ Loop único sem reinício recursivo\n✓ Coleta e volta para a base\n✓ Ignora o egg já coletado\n✓ Procura o próximo alvo\n✓ Server Hop quando nenhum alvo resta",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4199,4 +4134,4 @@ do
 end
 
 
-print("[Lordzy POP v12.13 CONTINUOUS EGG HOP] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.13.1 LOOP REWORK] LOADED SUCCESSFULLY")
