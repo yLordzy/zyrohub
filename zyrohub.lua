@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.12 MANUAL TARGET + RETURN FIX] STARTING...")
+print("[Lordzy POP v12.12.1 COLLECTED EGG FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -2227,6 +2227,21 @@ do
     local autoServerHopToken = 0
     local HOP_RETRY_SECONDS = 20
 
+    -- Alguns eggs continuam em RenderedEggs mesmo depois de serem pegos.
+    -- Mantemos uma lista fraca das instâncias já coletadas para não detectar
+    -- o mesmo ovo novamente no servidor atual.
+    local collectedEggInstances = setmetatable({}, {__mode = "k"})
+
+    local function markEggAsCollected(egg)
+        if egg then
+            collectedEggInstances[egg] = true
+        end
+    end
+
+    local function isEggAlreadyCollected(egg)
+        return egg ~= nil and collectedEggInstances[egg] == true
+    end
+
     --------------------------------------------------------------------------
     -- EGG FILTER SERVER HOP
     --------------------------------------------------------------------------
@@ -2280,9 +2295,11 @@ do
         end
 
         for _, egg in ipairs(RenderedEggsFolder:GetChildren()) do
-            for filterKey in pairs(LordzyHopState.targets or {}) do
-                if eggMatchesFilter(egg.Name, filterKey) then
-                    return egg, filterKey
+            if not isEggAlreadyCollected(egg) then
+                for filterKey in pairs(LordzyHopState.targets or {}) do
+                    if eggMatchesFilter(egg.Name, filterKey) then
+                        return egg, filterKey
+                    end
                 end
             end
         end
@@ -2612,12 +2629,18 @@ do
         autoCollectBusy = true
         local eggName = tostring(foundEgg.Name)
 
+        -- Desde este ponto, esta instância não pode mais ser considerada
+        -- um alvo disponível, mesmo se continuar aparecendo em RenderedEggs.
+        markEggAsCollected(foundEgg)
+
         -- Watchdog independente: mesmo que alguma interação trave,
         -- força o retorno à base depois de alguns segundos.
         task.delay(4.6, function()
             if autoCollectBusy then
                 pcall(teleportToHomePlot)
-                FilterStatusSub.Text = "Coleta finalizada. Retornado para a base."
+                FilterStatusTitle.Text = "COLETADO: " .. eggName
+                FilterStatusTitle.TextColor3 = Theme.Success
+                FilterStatusSub.Text = "Ovo já coletado e ignorado neste servidor."
                 FilterStatusSub.TextColor3 = Theme.Success
                 notify(
                     "Egg Filter Hop",
@@ -2647,7 +2670,9 @@ do
 
                 pcall(teleportToHomePlot)
 
-                FilterStatusSub.Text = "Egg coletado. Retornado para a base."
+                FilterStatusTitle.Text = "COLETADO: " .. eggName
+                FilterStatusTitle.TextColor3 = Theme.Success
+                FilterStatusSub.Text = "Ovo já coletado e ignorado neste servidor."
                 FilterStatusSub.TextColor3 = Theme.Success
 
                 notify(
@@ -4089,19 +4114,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.12", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.12.1", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Alvo Manual + Retorno Garantido", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Correção de Ovo Já Coletado", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Agora você pode adicionar qualquer egg pelo nome mesmo sem ele existir no servidor atual. Também corrigi a coleta para sempre retornar à base após pegar o egg.",
+        "Corrigido o caso em que o hub continuava detectando um egg depois de ele já estar na sua mão. A instância coletada agora é ignorada no servidor atual.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4113,7 +4138,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Digite qualquer egg como ALVO\n✓ Funciona mesmo sem o egg no servidor atual\n✓ Nome parcial também funciona\n✓ Coleta segurando E\n✓ Watchdog força retorno para a base",
+        "✓ Egg coletado é marcado como concluído\n✓ Mesma instância não é detectada novamente\n✓ Status muda para COLETADO\n✓ RenderedEggs fantasma é ignorado\n✓ Mantém filtro e retorno para a base",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4157,4 +4182,4 @@ do
 end
 
 
-print("[Lordzy POP v12.12 MANUAL TARGET + RETURN FIX] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.12.1 COLLECTED EGG FIX] LOADED SUCCESSFULLY")
