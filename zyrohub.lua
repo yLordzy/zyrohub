@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.12.1 COLLECTED EGG FIX] STARTING...")
+print("[Lordzy POP v12.13 CONTINUOUS EGG HOP] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -2620,6 +2620,7 @@ do
     local eggHopBusy = false
 
     local autoCollectBusy = false
+    local runEggFilterHop
 
     local function collectFoundTargetEgg(foundEgg)
         if autoCollectBusy or not foundEgg or not foundEgg.Parent then
@@ -2640,14 +2641,22 @@ do
                 pcall(teleportToHomePlot)
                 FilterStatusTitle.Text = "COLETADO: " .. eggName
                 FilterStatusTitle.TextColor3 = Theme.Success
-                FilterStatusSub.Text = "Ovo já coletado e ignorado neste servidor."
+                FilterStatusSub.Text = "Ovo coletado. Continuando a busca por outros alvos..."
                 FilterStatusSub.TextColor3 = Theme.Success
                 notify(
                     "Egg Filter Hop",
-                    eggName .. " coletado. Retorno para a base concluído.",
+                    eggName .. " coletado. Retorno concluído; continuando busca.",
                     "success"
                 )
                 autoCollectBusy = false
+
+                if LordzyHopState.eggHopEnabled then
+                    task.delay(0.8, function()
+                        if LordzyHopState.eggHopEnabled then
+                            runEggFilterHop()
+                        end
+                    end)
+                end
             end
         end)
 
@@ -2672,12 +2681,12 @@ do
 
                 FilterStatusTitle.Text = "COLETADO: " .. eggName
                 FilterStatusTitle.TextColor3 = Theme.Success
-                FilterStatusSub.Text = "Ovo já coletado e ignorado neste servidor."
+                FilterStatusSub.Text = "Ovo coletado. Continuando a busca por outros alvos..."
                 FilterStatusSub.TextColor3 = Theme.Success
 
                 notify(
                     "Egg Filter Hop",
-                    eggName .. " coletado. Voltando para sua base.",
+                    eggName .. " coletado. Continuando a busca...",
                     "success"
                 )
             end)
@@ -2688,12 +2697,21 @@ do
             end
 
             autoCollectBusy = false
+
+            -- Continua a caça depois de voltar para a base.
+            if LordzyHopState.eggHopEnabled then
+                task.delay(0.8, function()
+                    if LordzyHopState.eggHopEnabled then
+                        runEggFilterHop()
+                    end
+                end)
+            end
         end)
     end
 
-    local function stopEggHop(foundEgg)
-        LordzyHopState.eggHopEnabled = false
-        eggHopToken += 1
+    local function handleFoundEgg(foundEgg)
+        -- NÃO desliga o Auto Server Hop aqui.
+        -- A busca deve continuar depois da coleta.
         eggHopBusy = false
 
         if LordzyHopConfig and LordzyHopConfig.Save then
@@ -2703,11 +2721,11 @@ do
         if foundEgg then
             FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
             FilterStatusTitle.TextColor3 = Theme.Success
-            FilterStatusSub.Text = "Encontrado. Pegando o egg e voltando para a base..."
+            FilterStatusSub.Text = "Pegando o egg e voltando para a base..."
 
             notify(
                 "Egg encontrado!",
-                foundEgg.Name .. " apareceu. Indo pegar e levar para sua base.",
+                foundEgg.Name .. " apareceu. Indo pegar e continuar a busca.",
                 "success"
             )
 
@@ -2715,12 +2733,11 @@ do
                 updateEggESP(foundEgg)
             end)
 
-            -- Encontrou um dos ALVOS: pega e leva para a base automaticamente.
             collectFoundTargetEgg(foundEgg)
         end
     end
 
-    local function runEggFilterHop()
+    runEggFilterHop = function()
         if eggHopBusy then
             return
         end
@@ -2751,7 +2768,7 @@ do
                 local foundEgg = findWantedEggInCurrentServer()
 
                 if foundEgg then
-                    stopEggHop(foundEgg)
+                    handleFoundEgg(foundEgg)
                     return
                 end
 
@@ -4114,19 +4131,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.12.1", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.13", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Correção de Ovo Já Coletado", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Coleta Contínua + Server Hop", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Corrigido o caso em que o hub continuava detectando um egg depois de ele já estar na sua mão. A instância coletada agora é ignorada no servidor atual.",
+        "Agora pegar um egg não desliga mais a caça. Depois de coletar e voltar para a base, o hub continua procurando outros alvos e faz Server Hop novamente quando necessário.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4138,7 +4155,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Egg coletado é marcado como concluído\n✓ Mesma instância não é detectada novamente\n✓ Status muda para COLETADO\n✓ RenderedEggs fantasma é ignorado\n✓ Mantém filtro e retorno para a base",
+        "✓ Coleta não desliga mais o Auto Hop\n✓ Ovo coletado continua ignorado\n✓ Volta para a base\n✓ Retoma a busca automaticamente\n✓ Faz Server Hop novamente se não houver outro alvo",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4182,4 +4199,4 @@ do
 end
 
 
-print("[Lordzy POP v12.12.1 COLLECTED EGG FIX] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.13 CONTINUOUS EGG HOP] LOADED SUCCESSFULLY")
