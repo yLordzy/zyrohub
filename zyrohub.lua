@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.11 AUTO COLLECT EGG] STARTING...")
+print("[Lordzy POP v12.12 MANUAL TARGET + RETURN FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1643,7 +1643,7 @@ do
 
     local FilterBox = Instance.new("Frame")
     FilterBox.Name = "EggHopFilterBox"
-    FilterBox.Size = UDim2.new(1, 0, 0, 82)
+    FilterBox.Size = UDim2.new(1, 0, 0, 126)
     FilterBox.BackgroundColor3 = Theme.Surface2
     FilterBox.BorderSizePixel = 0
     FilterBox.Parent = EggBrowser
@@ -1710,6 +1710,71 @@ do
         end
 
         notify("Egg Filter", "Alvos salvos foram limpos.", "warning")
+    end)
+
+    -- Permite marcar um egg que NÃO existe no servidor atual.
+    local ManualTarget = Instance.new("TextBox")
+    ManualTarget.Name = "ManualEggTarget"
+    ManualTarget.Size = UDim2.new(1, -112, 0, 30)
+    ManualTarget.Position = UDim2.new(0, 12, 0, 86)
+    ManualTarget.BackgroundColor3 = Theme.Surface3
+    ManualTarget.BorderSizePixel = 0
+    ManualTarget.PlaceholderText = "Ex.: Cherub Egg, Blackhole Egg..."
+    ManualTarget.PlaceholderColor3 = Theme.Dim
+    ManualTarget.Text = ""
+    ManualTarget.TextColor3 = Theme.Text
+    ManualTarget.TextSize = 8
+    ManualTarget.Font = Enum.Font.Gotham
+    ManualTarget.TextXAlignment = Enum.TextXAlignment.Left
+    ManualTarget.ClearTextOnFocus = false
+    ManualTarget.Parent = FilterBox
+    uiCorner(ManualTarget, 8)
+    uiPadding(ManualTarget, 9, 8, 0, 0)
+
+    local AddManual = Instance.new("TextButton")
+    AddManual.Name = "AddManualEggTarget"
+    AddManual.Size = UDim2.new(0, 88, 0, 30)
+    AddManual.Position = UDim2.new(1, -100, 0, 86)
+    AddManual.BackgroundColor3 = Theme.AccentSoft
+    AddManual.BorderSizePixel = 0
+    AddManual.Text = "ADICIONAR"
+    AddManual.TextColor3 = Theme.Text
+    AddManual.TextSize = 7
+    AddManual.Font = Enum.Font.GothamBold
+    AddManual.AutoButtonColor = false
+    AddManual.Parent = FilterBox
+    uiCorner(AddManual, 8)
+
+    local function addManualTarget()
+        local rawName = tostring(ManualTarget.Text or "")
+        rawName = rawName:gsub("^%s+", ""):gsub("%s+$", "")
+
+        if rawName == "" then
+            notify("Egg Filter", "Digite o nome do egg que deseja procurar.", "warning")
+            return
+        end
+
+        local key = rawName:lower():gsub("[%s_%-]", "")
+        env.LordzyHopState.targets = env.LordzyHopState.targets or {}
+        env.LordzyHopState.targets[key] = rawName
+
+        if LordzyHopConfig and LordzyHopConfig.Save then
+            pcall(LordzyHopConfig.Save)
+        end
+
+        if env.LordzyEggFilterUI and env.LordzyEggFilterUI.RefreshCount then
+            pcall(env.LordzyEggFilterUI.RefreshCount)
+        end
+
+        ManualTarget.Text = ""
+        notify("Egg Filter", rawName .. " adicionado como ALVO.", "success")
+    end
+
+    AddManual.MouseButton1Click:Connect(addManualTarget)
+    ManualTarget.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            addManualTarget()
+        end
     end)
 end
 
@@ -2177,7 +2242,14 @@ do
     end
 
     local function eggMatchesFilter(eggName, filterKey)
-        return normalizedEggName(eggName) == tostring(filterKey or "")
+        local normalized = normalizedEggName(eggName)
+        local wanted = tostring(filterKey or "")
+
+        -- ALVO escolhido pela lista = normalmente nome completo.
+        -- ALVO digitado manualmente também pode ser parcial:
+        -- "cherub" encontra "Cherub Egg", por exemplo.
+        return normalized == wanted
+            or (wanted ~= "" and string.find(normalized, wanted, 1, true) ~= nil)
     end
 
     local function getSelectedEggFilters()
@@ -2208,9 +2280,10 @@ do
         end
 
         for _, egg in ipairs(RenderedEggsFolder:GetChildren()) do
-            local normalized = normalizedEggName(egg.Name)
-            if LordzyHopState.targets[normalized] then
-                return egg, normalized
+            for filterKey in pairs(LordzyHopState.targets or {}) do
+                if eggMatchesFilter(egg.Name, filterKey) then
+                    return egg, filterKey
+                end
             end
         end
 
@@ -2537,56 +2610,57 @@ do
         end
 
         autoCollectBusy = true
+        local eggName = tostring(foundEgg.Name)
+
+        -- Watchdog independente: mesmo que alguma interação trave,
+        -- força o retorno à base depois de alguns segundos.
+        task.delay(4.6, function()
+            if autoCollectBusy then
+                pcall(teleportToHomePlot)
+                FilterStatusSub.Text = "Coleta finalizada. Retornado para a base."
+                FilterStatusSub.TextColor3 = Theme.Success
+                notify(
+                    "Egg Filter Hop",
+                    eggName .. " coletado. Retorno para a base concluído.",
+                    "success"
+                )
+                autoCollectBusy = false
+            end
+        end)
 
         task.spawn(function()
-            notify(
-                "Egg encontrado!",
-                "Indo pegar " .. tostring(foundEgg.Name) .. "...",
-                "success"
-            )
+            local ok, err = pcall(function()
+                notify(
+                    "Egg encontrado!",
+                    "Indo pegar " .. eggName .. "...",
+                    "success"
+                )
 
-            -- Vai até o egg.
-            teleportToModel(foundEgg)
-            task.wait(0.45)
+                teleportToModel(foundEgg)
+                task.wait(0.35)
 
-            -- Primeiro tenta o mesmo método que já funciona no Auto Best Egg.
-            pcall(function()
+                -- No Ride A Pet a coleta principal é segurando E.
+                -- Depois disso voltamos imediatamente; não ficamos presos
+                -- tentando interagir novamente com um egg que já está na mão.
                 holdEKey(3)
+                task.wait(0.15)
+
+                pcall(teleportToHomePlot)
+
+                FilterStatusSub.Text = "Egg coletado. Retornado para a base."
+                FilterStatusSub.TextColor3 = Theme.Success
+
+                notify(
+                    "Egg Filter Hop",
+                    eggName .. " coletado. Voltando para sua base.",
+                    "success"
+                )
             end)
 
-            task.wait(0.25)
-
-            -- Fallback: alguns eggs usam ProximityPrompt.
-            pcall(function()
-                local env = (getgenv and getgenv()) or _G
-                local firePrompt = nil
-
-                if type(fireproximityprompt) == "function" then
-                    firePrompt = fireproximityprompt
-                elseif type(env.fireproximityprompt) == "function" then
-                    firePrompt = env.fireproximityprompt
-                end
-
-                if type(firePrompt) == "function" and foundEgg and foundEgg.Parent then
-                    for _, desc in ipairs(foundEgg:GetDescendants()) do
-                        if desc:IsA("ProximityPrompt") and desc.Enabled then
-                            firePrompt(desc)
-                            task.wait(0.15)
-                        end
-                    end
-                end
-            end)
-
-            task.wait(0.35)
-
-            -- Volta automaticamente para a base depois da tentativa de coleta.
-            teleportToHomePlot()
-
-            notify(
-                "Egg Filter Hop",
-                tostring(foundEgg.Name) .. " processado. Voltando para sua base.",
-                "success"
-            )
+            if not ok then
+                warn("[ZyroHub AutoCollect] Falha:", tostring(err))
+                pcall(teleportToHomePlot)
+            end
 
             autoCollectBusy = false
         end)
@@ -4015,19 +4089,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.11", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.12", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Auto Coleta + Retorno para Base", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Alvo Manual + Retorno Garantido", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Além de lembrar os ALVOS entre servidores, agora quando encontrar um egg marcado o hub vai até ele, tenta coletar e volta automaticamente para sua base.",
+        "Agora você pode adicionar qualquer egg pelo nome mesmo sem ele existir no servidor atual. Também corrigi a coleta para sempre retornar à base após pegar o egg.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4039,7 +4113,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Mantém os ALVOS entre servidores\n✓ Para o Server Hop ao encontrar um alvo\n✓ Teleporta automaticamente até o egg\n✓ Segura E / tenta ProximityPrompt\n✓ Volta para sua base após coletar",
+        "✓ Digite qualquer egg como ALVO\n✓ Funciona mesmo sem o egg no servidor atual\n✓ Nome parcial também funciona\n✓ Coleta segurando E\n✓ Watchdog força retorno para a base",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4083,4 +4157,4 @@ do
 end
 
 
-print("[Lordzy POP v12.11 AUTO COLLECT EGG] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.12 MANUAL TARGET + RETURN FIX] LOADED SUCCESSFULLY")
