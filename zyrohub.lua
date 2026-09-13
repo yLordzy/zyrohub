@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[ZYRO HUB v12.17.3 POP TONGUE TAB] STARTING...")
+print("[ZYRO HUB v12.17.4 MOBILE FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -4262,44 +4262,59 @@ local function applyMobileMiniMode()
         HubBlur.Enabled = false
     end
 
-    -- Dedicated phone-size window: compact, centered, never desktop-sized.
-    local targetW = math.clamp(math.floor(viewport.X * 0.82), 300, 380)
-    local targetH = math.clamp(math.floor(viewport.Y * 0.44), 250, 330)
+    -- Mobile responsivo de verdade.
+    -- Em landscape usamos boa parte da tela; o limite antigo de 380px
+    -- deixava o hub minúsculo em celulares/tablets deitados.
+    local landscape = viewport.X > viewport.Y
+    local targetW
+    local targetH
+
+    if landscape then
+        targetW = math.clamp(math.floor(viewport.X * 0.72), 520, 820)
+        targetH = math.clamp(math.floor(viewport.Y * 0.72), 360, 560)
+    else
+        targetW = math.clamp(math.floor(viewport.X - 18), 300, 440)
+        targetH = math.clamp(math.floor(viewport.Y * 0.68), 390, 620)
+    end
+
+    -- Nunca deixa passar das bordas reais da viewport.
+    targetW = math.min(targetW, math.max(300, viewport.X - 18))
+    targetH = math.min(targetH, math.max(300, viewport.Y - 72))
 
     Main.Size = UDim2.new(0, targetW, 0, targetH)
-    Main.Position = UDim2.new(0.5, 0, 0.54, 0)
+    Main.Position = UDim2.new(0.5, 0, 0.52, 0)
     Main.BackgroundTransparency = 0.015
 
     Shadow.Size = UDim2.new(0, targetW + 8, 0, targetH + 8)
     Shadow.Position = Main.Position
     Shadow.BackgroundTransparency = 0.78
 
-    -- Very small header.
-    TopBar.Size = UDim2.new(1, 0, 0, 38)
-    TopLine.Position = UDim2.new(0, 0, 0, 37)
+    -- Header mobile compacto, mas legível.
+    TopBar.Size = UDim2.new(1, 0, 0, 48)
+    TopLine.Position = UDim2.new(0, 0, 0, 47)
     TopLine.Size = UDim2.new(1, 0, 0, 1)
 
-    ContentRoot.Position = UDim2.new(0, 0, 0, 38)
-    ContentRoot.Size = UDim2.new(1, 0, 1, -38)
+    ContentRoot.Position = UDim2.new(0, 0, 0, 48)
+    ContentRoot.Size = UDim2.new(1, 0, 1, -48)
 
-    PageTitle.Position = UDim2.new(0, 12, 0, 4)
-    PageTitle.TextSize = 11
-    PageTitle.Size = UDim2.new(1, -90, 0, 15)
+    PageTitle.Position = UDim2.new(0, 14, 0, 7)
+    PageTitle.TextSize = 13
+    PageTitle.Size = UDim2.new(1, -100, 0, 17)
 
-    PageSub.Position = UDim2.new(0, 12, 0, 19)
-    PageSub.TextSize = 6
-    PageSub.Size = UDim2.new(1, -90, 0, 10)
+    PageSub.Position = UDim2.new(0, 14, 0, 26)
+    PageSub.TextSize = 7
+    PageSub.Size = UDim2.new(1, -100, 0, 12)
 
     DragHint.Visible = false
 
-    MinimizeBtn.Size = UDim2.new(0, 24, 0, 24)
-    MinimizeBtn.Position = UDim2.new(1, -56, 0, 7)
-    MinimizeBtn.TextSize = 11
+    MinimizeBtn.Size = UDim2.new(0, 28, 0, 28)
+    MinimizeBtn.Position = UDim2.new(1, -66, 0, 10)
+    MinimizeBtn.TextSize = 12
 
     local hideBtn = TopBar:FindFirstChild("HideBtn")
     if hideBtn then
-        hideBtn.Size = UDim2.new(0, 24, 0, 24)
-        hideBtn.Position = UDim2.new(1, -28, 0, 7)
+        hideBtn.Size = UDim2.new(0, 28, 0, 28)
+        hideBtn.Position = UDim2.new(1, -34, 0, 10)
         hideBtn.TextSize = 12
     end
 
@@ -4312,21 +4327,41 @@ local function applyMobileMiniMode()
     for _, page in pairs(Pages) do
         local padding = page:FindFirstChildOfClass("UIPadding")
         if padding then
-            padding.PaddingLeft = UDim.new(0, 7)
-            padding.PaddingRight = UDim.new(0, 7)
-            padding.PaddingTop = UDim.new(0, 7)
-            padding.PaddingBottom = UDim.new(0, 7)
+            padding.PaddingLeft = UDim.new(0, 10)
+            padding.PaddingRight = UDim.new(0, 10)
+            padding.PaddingTop = UDim.new(0, 10)
+            padding.PaddingBottom = UDim.new(0, 10)
         end
     end
 
-    -- On phone, do not show the large POP launcher at all.
+    -- Launcher mobile: mantém disponível, mas adapta o conteúdo.
     local launcher = HomePage:FindFirstChild("PopLauncher")
     if launcher then
-        launcher.Visible = false
+        launcher.Visible = true
+
+        local brand = launcher:FindFirstChild("Brand")
+        local tiles = launcher:FindFirstChild("Tiles")
+
+        if brand then
+            brand.Visible = false
+        end
+
+        if tiles then
+            tiles.AnchorPoint = Vector2.new(0.5, 0.5)
+            tiles.Position = UDim2.new(0.5, 0, 0.5, 0)
+            tiles.Size = UDim2.new(1, -18, 1, -18)
+
+            local grid = tiles:FindFirstChildOfClass("UIGridLayout")
+            if grid then
+                grid.FillDirectionMaxCells = 2
+                grid.CellSize = UDim2.new(0.5, -5, 0.5, -5)
+                grid.CellPadding = UDim2.new(0, 10, 0, 10)
+            end
+        end
     end
 
     -- Compact top dock.
-    QuickDock.Size = UDim2.new(0, IS_RIDE_A_PET and 178 or 132, 0, 26)
+    QuickDock.Size = UDim2.new(0, 196, 0, 28)
     QuickDock.Position = UDim2.new(0.5, 0, 0, 1)
 
     local dockLayout = QuickDock:FindFirstChildOfClass("UIListLayout")
@@ -4356,11 +4391,13 @@ local function applyMobileMiniMode()
         ChatInput.TextSize = 10
     end
 
-    -- Start on the most useful page for phone.
+    -- Abre o módulo correto no mobile.
     if IS_RIDE_A_PET then
         setPage("Ride", "Ride A Pet", "Modo mobile")
+    elseif IS_TONGUE_ESCAPE then
+        setPage("Tongue", "Tongue Escape", "Auto Farm, Auto Tongue e Auto Rebirth")
     else
-        setPage("Chat", "Chat Global", "Modo mobile universal")
+        setPage("Home", "Zyro Hub", "Escolha um módulo")
     end
 end
 
@@ -4503,12 +4540,12 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.17.3", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17.4", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "POP Launcher • Tongue Tab", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Mobile Layout Fix", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
@@ -4571,4 +4608,4 @@ do
 end
 
 
-print("[ZYRO HUB v12.17.3 POP TONGUE TAB] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17.4 MOBILE FIX] LOADED SUCCESSFULLY")
