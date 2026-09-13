@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.10 CROSS-SERVER EGG FILTER] STARTING...")
+print("[Lordzy POP v12.10.1 CONFIG SAVE FIX] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1629,6 +1629,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+local LordzyHopConfig = {}
+
 local EggBrowser = section(RidePage, "Egg Browser", "Buscar, teleportar e ativar ESP individual")
 
 
@@ -1986,34 +1988,41 @@ do
 end
 
 
-local LordzyHopConfig = {}
 do
     local env = (getgenv and getgenv()) or _G
 
     local CONFIG_FOLDER = "ZyroHub"
     local CONFIG_FILE = CONFIG_FOLDER .. "/ride_a_pet_egg_targets.json"
 
+    -- Alguns executores expõem as funções de arquivo como globais,
+    -- outros dentro de getgenv(). Aceita os dois formatos.
+    local writeFileFn = (type(writefile) == "function" and writefile) or env.writefile
+    local readFileFn = (type(readfile) == "function" and readfile) or env.readfile
+    local isFileFn = (type(isfile) == "function" and isfile) or env.isfile
+    local makeFolderFn = (type(makefolder) == "function" and makefolder) or env.makefolder
+    local isFolderFn = (type(isfolder) == "function" and isfolder) or env.isfolder
+
     local function canUseFileSystem()
-        return type(env.writefile) == "function"
-            and type(env.readfile) == "function"
-            and type(env.isfile) == "function"
+        return type(writeFileFn) == "function"
+            and type(readFileFn) == "function"
+            and type(isFileFn) == "function"
     end
 
     local function ensureFolder()
-        if type(env.makefolder) ~= "function" then
+        if type(makeFolderFn) ~= "function" then
             return
         end
 
         local okIsFolder, exists = pcall(function()
-            if type(env.isfolder) == "function" then
-                return env.isfolder(CONFIG_FOLDER)
+            if type(isFolderFn) == "function" then
+                return isFolderFn(CONFIG_FOLDER)
             end
             return false
         end)
 
         if not okIsFolder or not exists then
             pcall(function()
-                env.makefolder(CONFIG_FOLDER)
+                makeFolderFn(CONFIG_FOLDER)
             end)
         end
     end
@@ -2039,12 +2048,12 @@ do
             ensureFolder()
 
             local okExists, exists = pcall(function()
-                return env.isfile(CONFIG_FILE)
+                return isFileFn(CONFIG_FILE)
             end)
 
             if okExists and exists then
                 local okRead, raw = pcall(function()
-                    return env.readfile(CONFIG_FILE)
+                    return readFileFn(CONFIG_FILE)
                 end)
 
                 if okRead and type(raw) == "string" and raw ~= "" then
@@ -2055,6 +2064,13 @@ do
                     if okDecode and type(decoded) == "table" then
                         LordzyHopState.targets = normalizeTargets(decoded.targets)
                         LordzyHopState.eggHopEnabled = decoded.eggHopEnabled == true
+
+                        local loadedCount = 0
+                        for _ in pairs(LordzyHopState.targets) do
+                            loadedCount += 1
+                        end
+                        print("[ZyroHub Config] Loaded targets:", loadedCount, "AutoHop:", LordzyHopState.eggHopEnabled)
+
                         return true
                     end
                 end
@@ -2070,6 +2086,7 @@ do
         LordzyHopState.targets = normalizeTargets(LordzyHopState.targets)
 
         if not canUseFileSystem() then
+            warn("[ZyroHub Config] Executor sem writefile/readfile/isfile; config não sobreviverá ao teleport.")
             return false
         end
 
@@ -2089,9 +2106,20 @@ do
             return false
         end
 
-        local okWrite = pcall(function()
-            env.writefile(CONFIG_FILE, encoded)
+        local okWrite, writeErr = pcall(function()
+            writeFileFn(CONFIG_FILE, encoded)
         end)
+
+        local savedCount = 0
+        for _ in pairs(LordzyHopState.targets) do
+            savedCount += 1
+        end
+
+        if okWrite then
+            print("[ZyroHub Config] Saved targets:", savedCount, "AutoHop:", LordzyHopState.eggHopEnabled)
+        else
+            warn("[ZyroHub Config] Save failed:", tostring(writeErr))
+        end
 
         return okWrite
     end
@@ -3921,19 +3949,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.10", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.10.1", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Busca persistente entre servidores", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Config corrigida entre servidores", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Agora os ALVOS e o Auto Server Hop por Egg ficam salvos. Ao entrar em outro servidor, a busca continua automaticamente.",
+        "Corrigido o salvamento dos ALVOS entre servidores. O botão ALVO agora grava a config real antes do teleport e recarrega no próximo servidor.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -3945,7 +3973,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Todos os ALVOS ficam salvos\n✓ Auto Server Hop também fica salvo\n✓ Retoma sozinho no próximo servidor\n✓ Para apenas quando encontrar um alvo\n✓ ALVOS voltam marcados no Egg Browser",
+        "✓ Corrigido Save() do botão ALVO\n✓ Suporte a writefile global/getgenv\n✓ Config salva antes do teleport\n✓ Logs de Saved/Loaded no console\n✓ Retoma os mesmos ALVOS no próximo servidor",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -3989,4 +4017,4 @@ do
 end
 
 
-print("[Lordzy POP v12.10 CROSS-SERVER EGG FILTER] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.10.1 CONFIG SAVE FIX] LOADED SUCCESSFULLY")
