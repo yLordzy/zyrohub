@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[ZYRO HUB v12.17.2 SEPARATE GAME TABS] STARTING...")
+print("[ZYRO HUB v12.17.3 POP TONGUE TAB] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1617,7 +1617,7 @@ do
         1,
         "◆",
         "RIDE A PET",
-        "ESP, Auto Best Egg e teleportes",
+        "Egg Filter, ESP, Auto Best Egg e teleportes",
         Theme.Accent,
         function()
             setPage("Ride", "Ride A Pet", "ESP, teleport e automações")
@@ -1626,24 +1626,23 @@ do
 
     makePopTile(
         2,
+        "T",
+        "TONGUE ESCAPE",
+        "Auto Farm, Auto Tongue e Auto Rebirth",
+        Theme.Accent2,
+        function()
+            setPage("Tongue", "Tongue Escape", "Farm, Auto Tongue e Auto Rebirth")
+        end
+    )
+
+    makePopTile(
+        3,
         "◈",
         "CHAT",
         "Chat global customizado",
         Theme.Accent2,
         function()
             setPage("Chat", "Chat Global", "Chat customizado com idade da conta")
-        end
-    )
-
-    makePopTile(
-        3,
-        "⌂",
-        "HOME TP",
-        "Voltar rapidamente para sua plot",
-        Theme.Success,
-        function()
-            teleportToHomePlot()
-            notify("Teleport", "Tentando voltar para sua plot.", "success")
         end
     )
 
@@ -1658,29 +1657,23 @@ do
         end
     )
 
+    -- O launcher POP é a navegação principal deste design.
+    -- Ride A Pet e Tongue Escape são cards TOTALMENTE separados.
+    local grid = Tiles:FindFirstChildOfClass("UIGridLayout")
+    if grid then
+        grid.CellSize = UDim2.new(0.5, -7, 0.5, -7)
+        grid.CellPadding = UDim2.new(0, 14, 0, 14)
+    end
 
-    -- UNIVERSAL MODE:
-    -- Outside Ride A Pet, keep only the universal modules.
-    if not IS_RIDE_A_PET then
-        for _, tile in ipairs(Tiles:GetChildren()) do
-            if tile:IsA("TextButton") then
-                local moduleTitle = tile:GetAttribute("ModuleTitle")
-
-                if moduleTitle == "RIDE A PET" or moduleTitle == "HOME TP" then
-                    tile.Visible = false
-                end
-            end
-        end
-
-        local grid = Tiles:FindFirstChildOfClass("UIGridLayout")
-        if grid then
-            -- Two clean universal cards: Chat + Settings.
-            grid.CellSize = UDim2.new(0.5, -7, 1, 0)
-            grid.CellPadding = UDim2.new(0, 14, 0, 0)
-        end
-
-        BrandTitle.Text = "UNIVERSAL\nHUB"
-        BrandSub.Text = "Chat universal e ferramentas do Lordzy Hub."
+    if IS_TONGUE_ESCAPE then
+        BrandTitle.Text = "TONGUE\nESCAPE"
+        BrandSub.Text = "Auto Farm, Auto Tongue e Auto Rebirth."
+    elseif IS_RIDE_A_PET then
+        BrandTitle.Text = "RIDE A PET\nHUB"
+        BrandSub.Text = "Egg Filter, automações e ferramentas."
+    else
+        BrandTitle.Text = "ZYRO\nHUB"
+        BrandSub.Text = "Escolha o módulo do jogo que deseja abrir."
     end
 
     -- Decorative corner text, like a designed landing page.
@@ -4510,12 +4503,12 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.17.2", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17.3", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Tabs Separadas • Ride + Tongue", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "POP Launcher • Tongue Tab", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
@@ -4578,4 +4571,4 @@ do
 end
 
 
-print("[ZYRO HUB v12.17.2 SEPARATE GAME TABS] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17.3 POP TONGUE TAB] LOADED SUCCESSFULLY")
