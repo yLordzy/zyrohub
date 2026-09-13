@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.8 ALL EGGS FILTER] STARTING...")
+print("[Lordzy POP v12.10 CROSS-SERVER EGG FILTER] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -1681,6 +1681,34 @@ do
     end
 
     env.LordzyEggFilterUI.RefreshCount()
+
+    local ClearSaved = Instance.new("TextButton")
+    ClearSaved.Name = "ClearSavedEggTargets"
+    ClearSaved.Size = UDim2.new(0, 112, 0, 22)
+    ClearSaved.Position = UDim2.new(1, -124, 0, 53)
+    ClearSaved.BackgroundColor3 = Theme.Surface3
+    ClearSaved.BorderSizePixel = 0
+    ClearSaved.Text = "LIMPAR ALVOS"
+    ClearSaved.TextColor3 = Theme.Muted
+    ClearSaved.TextSize = 7
+    ClearSaved.Font = Enum.Font.GothamBold
+    ClearSaved.AutoButtonColor = false
+    ClearSaved.Parent = FilterBox
+    uiCorner(ClearSaved, 7)
+
+    ClearSaved.MouseButton1Click:Connect(function()
+        if LordzyHopConfig and LordzyHopConfig.Clear then
+            pcall(LordzyHopConfig.Clear)
+        else
+            env.LordzyHopState.targets = {}
+        end
+
+        if env.LordzyEggFilterUI and env.LordzyEggFilterUI.RefreshCount then
+            pcall(env.LordzyEggFilterUI.RefreshCount)
+        end
+
+        notify("Egg Filter", "Alvos salvos foram limpos.", "warning")
+    end)
 end
 
 local SearchRow = Instance.new("Frame")
@@ -1846,6 +1874,10 @@ local function addEggItem(egg)
             env.LordzyHopState.targets[key] = egg.Name
         end
 
+        if LordzyHopConfig and LordzyHopConfig.Save then
+            pcall(LordzyHopConfig.Save)
+        end
+
         renderTarget()
 
         if env.LordzyEggFilterUI and env.LordzyEggFilterUI.RefreshCount then
@@ -1952,6 +1984,140 @@ do
     env.LordzyHopState.eggHopEnabled = env.LordzyHopState.eggHopEnabled == true
     LordzyHopState = env.LordzyHopState
 end
+
+
+local LordzyHopConfig = {}
+do
+    local env = (getgenv and getgenv()) or _G
+
+    local CONFIG_FOLDER = "ZyroHub"
+    local CONFIG_FILE = CONFIG_FOLDER .. "/ride_a_pet_egg_targets.json"
+
+    local function canUseFileSystem()
+        return type(env.writefile) == "function"
+            and type(env.readfile) == "function"
+            and type(env.isfile) == "function"
+    end
+
+    local function ensureFolder()
+        if type(env.makefolder) ~= "function" then
+            return
+        end
+
+        local okIsFolder, exists = pcall(function()
+            if type(env.isfolder) == "function" then
+                return env.isfolder(CONFIG_FOLDER)
+            end
+            return false
+        end)
+
+        if not okIsFolder or not exists then
+            pcall(function()
+                env.makefolder(CONFIG_FOLDER)
+            end)
+        end
+    end
+
+    local function normalizeTargets(data)
+        local out = {}
+        if type(data) ~= "table" then
+            return out
+        end
+
+        for key, displayName in pairs(data) do
+            if type(key) == "string" and type(displayName) == "string" and key ~= "" and displayName ~= "" then
+                out[key] = displayName
+            end
+        end
+
+        return out
+    end
+
+    function LordzyHopConfig.Load()
+        -- Primeiro tenta carregar do arquivo persistente.
+        if canUseFileSystem() then
+            ensureFolder()
+
+            local okExists, exists = pcall(function()
+                return env.isfile(CONFIG_FILE)
+            end)
+
+            if okExists and exists then
+                local okRead, raw = pcall(function()
+                    return env.readfile(CONFIG_FILE)
+                end)
+
+                if okRead and type(raw) == "string" and raw ~= "" then
+                    local okDecode, decoded = pcall(function()
+                        return HttpService:JSONDecode(raw)
+                    end)
+
+                    if okDecode and type(decoded) == "table" then
+                        LordzyHopState.targets = normalizeTargets(decoded.targets)
+                        LordzyHopState.eggHopEnabled = decoded.eggHopEnabled == true
+                        return true
+                    end
+                end
+            end
+        end
+
+        -- Fallback: mantém o estado atual/getgenv durante a sessão.
+        LordzyHopState.targets = normalizeTargets(LordzyHopState.targets)
+        return false
+    end
+
+    function LordzyHopConfig.Save()
+        LordzyHopState.targets = normalizeTargets(LordzyHopState.targets)
+
+        if not canUseFileSystem() then
+            return false
+        end
+
+        ensureFolder()
+
+        local payload = {
+            version = 2,
+            targets = LordzyHopState.targets,
+            eggHopEnabled = LordzyHopState.eggHopEnabled == true,
+        }
+
+        local okEncode, encoded = pcall(function()
+            return HttpService:JSONEncode(payload)
+        end)
+
+        if not okEncode then
+            return false
+        end
+
+        local okWrite = pcall(function()
+            env.writefile(CONFIG_FILE, encoded)
+        end)
+
+        return okWrite
+    end
+
+    function LordzyHopConfig.Clear()
+        LordzyHopState.targets = {}
+        LordzyHopState.eggHopEnabled = false
+        LordzyHopConfig.Save()
+    end
+
+    LordzyHopConfig.Load()
+
+    -- O Egg Browser foi criado antes da leitura da config.
+    -- Redesenha a lista para os ALVOS salvos voltarem marcados.
+    pcall(function()
+        if populateEggs then
+            populateEggs()
+        end
+    end)
+
+    local envUI = (getgenv and getgenv()) or _G
+    if envUI.LordzyEggFilterUI and envUI.LordzyEggFilterUI.RefreshCount then
+        pcall(envUI.LordzyEggFilterUI.RefreshCount)
+    end
+end
+
 
 --------------------------------------------------------------------------------
 -- RIDE A PET - SERVER HOP
@@ -2340,6 +2506,10 @@ do
         eggHopToken += 1
         eggHopBusy = false
 
+        if LordzyHopConfig and LordzyHopConfig.Save then
+            pcall(LordzyHopConfig.Save)
+        end
+
         if foundEgg then
             FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
             FilterStatusTitle.TextColor3 = Theme.Success
@@ -2365,6 +2535,9 @@ do
         local selected = getSelectedEggFilters()
         if #selected == 0 then
             LordzyHopState.eggHopEnabled = false
+            if LordzyHopConfig and LordzyHopConfig.Save then
+                pcall(LordzyHopConfig.Save)
+            end
             notify(
                 "Egg Filter Hop",
                 "Selecione pelo menos um egg como ALVO no Egg Browser primeiro.",
@@ -2400,11 +2573,14 @@ do
                     "warning"
                 )
 
+                -- Salva antes do teleport. Assim o próximo servidor sabe
+                -- quais ovos procurar e que a busca ainda está ativa.
+                if LordzyHopConfig and LordzyHopConfig.Save then
+                    pcall(LordzyHopConfig.Save)
+                end
+
                 local started = hopServerOnce()
                 if started then
-                    -- A sessão atual deve terminar quando o teleport iniciar.
-                    -- Se o hub for auto-executado no novo servidor, o estado em
-                    -- getgenv pode ser reaproveitado pelo executor.
                     return
                 end
 
@@ -2423,11 +2599,18 @@ do
         function(state)
             LordzyHopState.eggHopEnabled = state
 
+            if LordzyHopConfig and LordzyHopConfig.Save then
+                pcall(LordzyHopConfig.Save)
+            end
+
             if state then
                 local selected = getSelectedEggFilters()
 
                 if #selected == 0 then
                     LordzyHopState.eggHopEnabled = false
+                    if LordzyHopConfig and LordzyHopConfig.Save then
+                        pcall(LordzyHopConfig.Save)
+                    end
                     notify(
                         "Egg Filter Hop",
                         "Você precisa selecionar pelo menos um egg como ALVO no Egg Browser.",
@@ -2446,14 +2629,23 @@ do
             else
                 eggHopToken += 1
                 eggHopBusy = false
+                if LordzyHopConfig and LordzyHopConfig.Save then
+                    pcall(LordzyHopConfig.Save)
+                end
                 refreshEggFilterStatus()
                 notify("Egg Filter Hop", "Desativado.", "warning")
             end
         end
     )
 
-    -- Se o hub foi recarregado e o modo continuou marcado, verifica novamente.
+    -- Ao entrar em outro servidor, continua a caça automaticamente.
     if LordzyHopState.eggHopEnabled then
+        local restoredNames = getSelectedEggFilterNames()
+        notify(
+            "Egg Filter Hop",
+            "Retomando busca por " .. tostring(#restoredNames) .. " alvo(s) salvo(s)...",
+            "success"
+        )
         task.defer(runEggFilterHop)
     end
 
@@ -3729,19 +3921,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.8", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.10", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Filtro para TODOS os Eggs", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Busca persistente entre servidores", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Agora qualquer egg mostrado no Egg Browser pode ser marcado como ALVO para o Server Hop.",
+        "Agora os ALVOS e o Auto Server Hop por Egg ficam salvos. Ao entrar em outro servidor, a busca continua automaticamente.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -3753,7 +3945,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Botão ALVO em todos os eggs\n✓ Selecione um ou vários eggs\n✓ Filtro integrado ao Egg Browser\n✓ Server Hop para quando encontrar qualquer alvo\n✓ Seleção dinâmica, sem lista fixa",
+        "✓ Todos os ALVOS ficam salvos\n✓ Auto Server Hop também fica salvo\n✓ Retoma sozinho no próximo servidor\n✓ Para apenas quando encontrar um alvo\n✓ ALVOS voltam marcados no Egg Browser",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -3797,4 +3989,4 @@ do
 end
 
 
-print("[Lordzy POP v12.8 ALL EGGS FILTER] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.10 CROSS-SERVER EGG FILTER] LOADED SUCCESSFULLY")
