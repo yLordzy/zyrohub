@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[ZYRO HUB v12.17.1 TONGUE DETECTOR FIX] STARTING...")
+print("[ZYRO HUB v12.17.2 SEPARATE GAME TABS] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -966,22 +966,24 @@ end
 
 local HomeNav = makeNavButton("Home", "Home", "⌂", 1)
 local RideNav = makeNavButton("Ride", "Ride A Pet", "◆", 2)
-local TongueNav = makeNavButton("Tongue", "Tongue Escape", "◉", 3)
+local TongueNav = makeNavButton("Tongue", "Tongue Escape", "T", 3)
 local ChatNav = makeNavButton("Chat", "Chat Global", "◈", 4)
 local SettingsNav = makeNavButton("Settings", "Settings", "⚙", 5)
 
-RideNav.Visible = IS_RIDE_A_PET
-TongueNav.Visible = IS_TONGUE_ESCAPE
+-- MÓDULOS DE JOGO INDEPENDENTES.
+-- Não esconda Tongue Escape por causa do detector da Ride A Pet.
+RideNav.Visible = true
+TongueNav.Visible = true
 
 local function refreshGameTabs()
     IS_RIDE_A_PET = isRideAPetGame()
     IS_TONGUE_ESCAPE = isTongueEscapeGame()
 
-    RideNav.Visible = IS_RIDE_A_PET
-    TongueNav.Visible = IS_TONGUE_ESCAPE
+    RideNav.Visible = true
+    TongueNav.Visible = true
 
     if IS_TONGUE_ESCAPE then
-        print("[ZyroHub Detector] Tongue Escape reconhecido. Aba liberada.")
+        print("[ZyroHub Detector] Tongue Escape reconhecido.")
     end
 end
 
@@ -1887,10 +1889,10 @@ do
         notify("Tongue Escape", "Farm completo iniciado.", "success")
     end)
 
-    if not IS_TONGUE_ESCAPE then
-        setTongueStatus("Módulo disponível apenas no Tongue Escape.", Theme.Muted)
-    else
+    if IS_TONGUE_ESCAPE then
         setTongueStatus("Tongue Escape detectado • pronto", Theme.Success)
+    else
+        setTongueStatus("Módulo Tongue carregado • aguardando remotes", Theme.Muted)
     end
 end
 
@@ -4508,12 +4510,12 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.17.1", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17.2", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Tongue Escape • Detector Fix", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Tabs Separadas • Ride + Tongue", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
@@ -4576,4 +4578,4 @@ do
 end
 
 
-print("[ZYRO HUB v12.17.1 TONGUE DETECTOR FIX] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17.2 SEPARATE GAME TABS] LOADED SUCCESSFULLY")
