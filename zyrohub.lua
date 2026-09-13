@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[ZYRO HUB v12.17.4 MOBILE FIX] STARTING...")
+print("[ZYRO HUB v12.17.5 MOBILE TABS] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -4286,6 +4286,9 @@ local function applyMobileMiniMode()
     Main.BackgroundTransparency = 0.015
 
     Shadow.Size = UDim2.new(0, targetW + 8, 0, targetH + 8)
+
+    -- Navegação fixa no mobile.
+    MobileTabBar.Visible = true
     Shadow.Position = Main.Position
     Shadow.BackgroundTransparency = 0.78
 
@@ -4295,7 +4298,7 @@ local function applyMobileMiniMode()
     TopLine.Size = UDim2.new(1, 0, 0, 1)
 
     ContentRoot.Position = UDim2.new(0, 0, 0, 48)
-    ContentRoot.Size = UDim2.new(1, 0, 1, -48)
+    ContentRoot.Size = UDim2.new(1, 0, 1, -106)
 
     PageTitle.Position = UDim2.new(0, 14, 0, 7)
     PageTitle.TextSize = 13
@@ -4349,7 +4352,7 @@ local function applyMobileMiniMode()
         if tiles then
             tiles.AnchorPoint = Vector2.new(0.5, 0.5)
             tiles.Position = UDim2.new(0.5, 0, 0.5, 0)
-            tiles.Size = UDim2.new(1, -18, 1, -18)
+            tiles.Size = UDim2.new(1, -18, 1, -8)
 
             local grid = tiles:FindFirstChildOfClass("UIGridLayout")
             if grid then
@@ -4361,8 +4364,7 @@ local function applyMobileMiniMode()
     end
 
     -- Compact top dock.
-    QuickDock.Size = UDim2.new(0, 196, 0, 28)
-    QuickDock.Position = UDim2.new(0.5, 0, 0, 1)
+    QuickDock.Visible = false
 
     local dockLayout = QuickDock:FindFirstChildOfClass("UIListLayout")
     if dockLayout then
@@ -4440,6 +4442,71 @@ pcall(function()
 end)
 
 end
+
+
+--------------------------------------------------------------------------------
+-- MOBILE TAB BAR
+--------------------------------------------------------------------------------
+
+local MobileTabBar = Instance.new("Frame")
+MobileTabBar.Name = "MobileTabBar"
+MobileTabBar.AnchorPoint = Vector2.new(0.5, 1)
+MobileTabBar.Position = UDim2.new(0.5, 0, 1, -8)
+MobileTabBar.Size = UDim2.new(1, -20, 0, 48)
+MobileTabBar.BackgroundColor3 = Color3.fromRGB(20, 13, 18)
+MobileTabBar.BackgroundTransparency = 0.04
+MobileTabBar.BorderSizePixel = 0
+MobileTabBar.Visible = false
+MobileTabBar.ZIndex = 150
+MobileTabBar.Parent = Main
+uiCorner(MobileTabBar, 14)
+uiStroke(MobileTabBar, Theme.Accent, 1, 0.35)
+
+local MobileTabLayout = Instance.new("UIListLayout")
+MobileTabLayout.FillDirection = Enum.FillDirection.Horizontal
+MobileTabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+MobileTabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+MobileTabLayout.Padding = UDim.new(0, 6)
+MobileTabLayout.Parent = MobileTabBar
+
+local function makeMobileTab(name, symbol, pageName, titleText, subtitleText)
+    local btn = Instance.new("TextButton")
+    btn.Name = "Mobile" .. name .. "Tab"
+    btn.Size = UDim2.new(0.19, -6, 0, 36)
+    btn.BackgroundColor3 = Theme.Surface2
+    btn.BorderSizePixel = 0
+    btn.Text = symbol .. "\n" .. name
+    btn.TextColor3 = Theme.Muted
+    btn.TextSize = 7
+    btn.Font = Enum.Font.GothamBold
+    btn.TextWrapped = true
+    btn.AutoButtonColor = false
+    btn.ZIndex = 151
+    btn.Parent = MobileTabBar
+    uiCorner(btn, 10)
+
+    btn.MouseButton1Click:Connect(function()
+        setPage(pageName, titleText, subtitleText)
+
+        for _, child in ipairs(MobileTabBar:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = Theme.Surface2
+                child.TextColor3 = Theme.Muted
+            end
+        end
+
+        btn.BackgroundColor3 = Theme.AccentSoft
+        btn.TextColor3 = Theme.Text
+    end)
+
+    return btn
+end
+
+local MobileHomeTab = makeMobileTab("HOME", "⌂", "Home", "Home", "Visão geral do hub")
+local MobileRideTab = makeMobileTab("RIDE", "◆", "Ride", "Ride A Pet", "ESP, teleport e automações")
+local MobileTongueTab = makeMobileTab("TONGUE", "T", "Tongue", "Tongue Escape", "Auto Farm, Auto Tongue e Auto Rebirth")
+local MobileChatTab = makeMobileTab("CHAT", "◈", "Chat", "Chat Global", "Chat customizado")
+local MobileSettingsTab = makeMobileTab("SET", "⚙", "Settings", "Settings", "Preferências do hub")
 
 --------------------------------------------------------------------------------
 -- OPEN ANIMATION
@@ -4540,12 +4607,12 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.17.4", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17.5", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Mobile Layout Fix", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Mobile Tabs Fix", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
@@ -4608,4 +4675,4 @@ do
 end
 
 
-print("[ZYRO HUB v12.17.4 MOBILE FIX] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17.5 MOBILE TABS] LOADED SUCCESSFULLY")
