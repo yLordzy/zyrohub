@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.14 FORCE HOP AFTER COLLECT] STARTING...")
+print("[ZYRO HUB v12.17 TONGUE ESCAPE] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -22,12 +22,18 @@ local TargetParent = CoreGui:FindFirstChild("RobloxGui") or LocalPlayer:WaitForC
 local RenderedEggsFolder = Workspace:WaitForChild("RenderedEggs", 10) or Workspace:FindFirstChild("RenderedEggs")
 
 local RIDE_A_PET_PLACE_ID = 124216119978534
+local TONGUE_ESCAPE_PLACE_ID = 122245938604556
 
 local function isRideAPetGame()
     return game.PlaceId == RIDE_A_PET_PLACE_ID
 end
 
+local function isTongueEscapeGame()
+    return game.PlaceId == TONGUE_ESCAPE_PLACE_ID
+end
+
 local IS_RIDE_A_PET = isRideAPetGame()
+local IS_TONGUE_ESCAPE = isTongueEscapeGame()
 
 
 -- Almacenamiento de Highlights y ESTADOS
@@ -175,6 +181,79 @@ local function holdEKey(duration)
     task.wait(duration)
     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
 end
+
+-- INSTA INTERACT
+-- Torna ProximityPrompts instantâneos enquanto ativado.
+local instaInteractEnabled = true
+local instaPromptConnections = setmetatable({}, {__mode = "k"})
+
+local function applyInstaPrompt(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then
+        return
+    end
+
+    if instaInteractEnabled then
+        pcall(function()
+            prompt.HoldDuration = 0
+        end)
+    end
+
+    if not instaPromptConnections[prompt] then
+        instaPromptConnections[prompt] = prompt:GetPropertyChangedSignal("HoldDuration"):Connect(function()
+            if instaInteractEnabled and prompt.Parent and prompt.HoldDuration ~= 0 then
+                pcall(function()
+                    prompt.HoldDuration = 0
+                end)
+            end
+        end)
+    end
+end
+
+local function refreshInstaInteract()
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            applyInstaPrompt(obj)
+        end
+    end
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ProximityPrompt") then
+        task.defer(function()
+            applyInstaPrompt(obj)
+        end)
+    end
+end)
+
+local function instantInteractTarget(target)
+    if not target then
+        return false
+    end
+
+    local env = (getgenv and getgenv()) or _G
+    local firePrompt =
+        (type(fireproximityprompt) == "function" and fireproximityprompt)
+        or env.fireproximityprompt
+
+    local fired = false
+
+    for _, obj in ipairs(target:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Enabled then
+            applyInstaPrompt(obj)
+
+            if type(firePrompt) == "function" then
+                local ok = pcall(function()
+                    firePrompt(obj, 0)
+                end)
+                fired = fired or ok
+            end
+        end
+    end
+
+    return fired
+end
+
+task.defer(refreshInstaInteract)
 
 local function startAutoBestEgg()
     if autoBestEggThread then task.cancel(autoBestEggThread) end
@@ -327,23 +406,25 @@ end
 --------------------------------------------------------------------------------
 
 local Theme = {
-    Bg = Color3.fromRGB(10, 11, 16),
-    Surface = Color3.fromRGB(17, 19, 27),
-    Surface2 = Color3.fromRGB(23, 26, 36),
-    Surface3 = Color3.fromRGB(31, 35, 48),
-    Stroke = Color3.fromRGB(51, 57, 76),
+    -- Visual inspirado no HTML 2097 POP + TimerMo:
+    -- carvão fosco, vidro escuro e vermelho carmesim.
+    Bg = Color3.fromRGB(10, 8, 12),
+    Surface = Color3.fromRGB(19, 15, 22),
+    Surface2 = Color3.fromRGB(28, 20, 31),
+    Surface3 = Color3.fromRGB(39, 25, 42),
+    Stroke = Color3.fromRGB(91, 43, 58),
 
-    Accent = Color3.fromRGB(124, 92, 255),
-    Accent2 = Color3.fromRGB(73, 164, 255),
-    AccentSoft = Color3.fromRGB(59, 47, 108),
+    Accent = Color3.fromRGB(220, 20, 60),
+    Accent2 = Color3.fromRGB(255, 72, 96),
+    AccentSoft = Color3.fromRGB(94, 24, 43),
 
-    Text = Color3.fromRGB(245, 247, 255),
-    Muted = Color3.fromRGB(152, 160, 184),
-    Dim = Color3.fromRGB(103, 111, 135),
+    Text = Color3.fromRGB(239, 241, 239),
+    Muted = Color3.fromRGB(163, 167, 164),
+    Dim = Color3.fromRGB(112, 117, 113),
 
-    Success = Color3.fromRGB(76, 220, 148),
-    Warning = Color3.fromRGB(255, 196, 77),
-    Danger = Color3.fromRGB(255, 96, 121)
+    Success = Color3.fromRGB(255, 66, 92),
+    Warning = Color3.fromRGB(214, 188, 121),
+    Danger = Color3.fromRGB(218, 111, 117)
 }
 
 local UIState = {
@@ -531,9 +612,9 @@ end
 local Shadow = Instance.new("Frame")
 Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
 Shadow.Position = UDim2.fromScale(0.5, 0.5)
-Shadow.Size = UDim2.new(0, 704, 0, 514)
+Shadow.Size = UDim2.new(0, 884, 0, 594)
 Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-Shadow.BackgroundTransparency = 0.62
+Shadow.BackgroundTransparency = 0.48
 Shadow.BorderSizePixel = 0
 Shadow.Parent = ScreenGui
 uiCorner(Shadow, 22)
@@ -541,30 +622,59 @@ uiCorner(Shadow, 22)
 local Main = Instance.new("Frame")
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.Position = UDim2.fromScale(0.5, 0.5)
-Main.Size = UDim2.new(0, 680, 0, 490)
-Main.BackgroundColor3 = Color3.fromRGB(11, 12, 17)
+Main.Size = UDim2.new(0, 860, 0, 570)
+Main.BackgroundColor3 = Color3.fromRGB(18, 19, 19)
 Main.BorderSizePixel = 0
 Main.ClipsDescendants = true
-Main.BackgroundTransparency = 0.08
+Main.BackgroundTransparency = 0.04
 Main.Parent = ScreenGui
-uiCorner(Main, 18)
-uiStroke(Main, Theme.Stroke, 1.2, 0.08)
+uiCorner(Main, 22)
+uiStroke(Main, Theme.Accent, 1.15, 0.24)
 
 local MainGradient = Instance.new("UIGradient")
 MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 16, 23)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(9, 10, 15))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(31, 16, 25)),
+    ColorSequenceKeypoint.new(0.42, Color3.fromRGB(18, 13, 20)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(11, 9, 14))
 })
-MainGradient.Rotation = 90
+MainGradient.Rotation = 18
 MainGradient.Parent = Main
+
+-- Ambient lighting inspired by the HTML/screenshot.
+do
+    local GlowLeft = Instance.new("Frame")
+    GlowLeft.Name = "AmbientGlowLeft"
+    GlowLeft.AnchorPoint = Vector2.new(0.5, 0.5)
+    GlowLeft.Position = UDim2.new(0.20, 0, 0.32, 0)
+    GlowLeft.Size = UDim2.new(0, 420, 0, 420)
+    GlowLeft.BackgroundColor3 = Color3.fromRGB(160, 18, 50)
+    GlowLeft.BackgroundTransparency = 0.88
+    GlowLeft.BorderSizePixel = 0
+    GlowLeft.ZIndex = 0
+    GlowLeft.Parent = Main
+    uiCorner(GlowLeft, 999)
+
+    local GlowRight = Instance.new("Frame")
+    GlowRight.Name = "AmbientGlowRight"
+    GlowRight.AnchorPoint = Vector2.new(0.5, 0.5)
+    GlowRight.Position = UDim2.new(0.82, 0, 0.76, 0)
+    GlowRight.Size = UDim2.new(0, 360, 0, 360)
+    GlowRight.BackgroundColor3 = Color3.fromRGB(115, 12, 34)
+    GlowRight.BackgroundTransparency = 0.91
+    GlowRight.BorderSizePixel = 0
+    GlowRight.ZIndex = 0
+    GlowRight.Parent = Main
+    uiCorner(GlowRight, 999)
+end
 
 --------------------------------------------------------------------------------
 -- SIDEBAR
 --------------------------------------------------------------------------------
 
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 166, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
+Sidebar.Size = UDim2.new(0, 205, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(25, 24, 30)
+Sidebar.BackgroundTransparency = 0.10
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
 
@@ -579,15 +689,15 @@ SideDivider.Parent = Sidebar
 local Logo = Instance.new("Frame")
 Logo.Size = UDim2.new(0, 38, 0, 38)
 Logo.Position = UDim2.new(0, 16, 0, 16)
-Logo.BackgroundColor3 = Theme.Accent
+Logo.BackgroundColor3 = Theme.AccentSoft
 Logo.BorderSizePixel = 0
 Logo.Parent = Sidebar
 uiCorner(Logo, 11)
 
 local LogoGradient = Instance.new("UIGradient")
 LogoGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Theme.Accent),
-    ColorSequenceKeypoint.new(1, Theme.Accent2)
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(160, 24, 52)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(76, 16, 31))
 })
 LogoGradient.Rotation = 35
 LogoGradient.Parent = Logo
@@ -595,22 +705,22 @@ LogoGradient.Parent = Logo
 local LogoText = label(Logo, "L", 18, Theme.Text, Enum.Font.GothamBold, Enum.TextXAlignment.Center)
 LogoText.Size = UDim2.fromScale(1, 1)
 
-local HubTitle = label(Sidebar, "LORDZY HUB", 13, Theme.Text, Enum.Font.GothamBold)
-HubTitle.Position = UDim2.new(0, 62, 0, 17)
+local HubTitle = label(Sidebar, "ZYRO HUB", 13, Theme.Text, Enum.Font.GothamBold)
+HubTitle.Position = UDim2.new(0, 62, 0, 16)
 HubTitle.Size = UDim2.new(1, -70, 0, 17)
 
-local HubSub = label(Sidebar, "Ride A Pet", 9, Theme.Muted, Enum.Font.Gotham)
+local HubSub = label(Sidebar, "Automation Suite", 9, Theme.Muted, Enum.Font.Gotham)
 HubSub.Position = UDim2.new(0, 62, 0, 37)
 HubSub.Size = UDim2.new(1, -70, 0, 14)
 
 local NavHolder = Instance.new("Frame")
 NavHolder.BackgroundTransparency = 1
-NavHolder.Position = UDim2.new(0, 10, 0, 78)
-NavHolder.Size = UDim2.new(1, -20, 0, 250)
+NavHolder.Position = UDim2.new(0, 14, 0, 88)
+NavHolder.Size = UDim2.new(1, -28, 0, 280)
 NavHolder.Parent = Sidebar
 
 local NavLayout = Instance.new("UIListLayout")
-NavLayout.Padding = UDim.new(0, 7)
+NavLayout.Padding = UDim.new(0, 9)
 NavLayout.SortOrder = Enum.SortOrder.LayoutOrder
 NavLayout.Parent = NavHolder
 
@@ -660,23 +770,23 @@ InfoModules.Size = UDim2.new(1, -20, 0, 13)
 --------------------------------------------------------------------------------
 
 local TopBar = Instance.new("Frame")
-TopBar.Position = UDim2.new(0, 166, 0, 0)
-TopBar.Size = UDim2.new(1, -166, 0, 62)
+TopBar.Position = UDim2.new(0, 205, 0, 0)
+TopBar.Size = UDim2.new(1, -205, 0, 72)
 TopBar.BackgroundTransparency = 1
 TopBar.Active = true
 TopBar.Parent = Main
 
-local PageTitle = label(TopBar, "Home", 17, Theme.Text, Enum.Font.GothamBold)
-PageTitle.Position = UDim2.new(0, 20, 0, 13)
+local PageTitle = label(TopBar, "Home", 19, Theme.Text, Enum.Font.GothamBold)
+PageTitle.Position = UDim2.new(0, 24, 0, 16)
 PageTitle.Size = UDim2.new(1, -110, 0, 20)
 
 local PageSub = label(TopBar, "Visão geral do hub", 9, Theme.Muted, Enum.Font.Gotham)
-PageSub.Position = UDim2.new(0, 20, 0, 36)
+PageSub.Position = UDim2.new(0, 24, 0, 43)
 PageSub.Size = UDim2.new(1, -110, 0, 14)
 
 local DragHint = label(TopBar, "⋮⋮  ARRASTE AQUI", 8, Theme.Dim, Enum.Font.GothamBold, Enum.TextXAlignment.Center)
 DragHint.AnchorPoint = Vector2.new(0.5, 0.5)
-DragHint.Position = UDim2.new(0.5, 0, 0.5, 0)
+DragHint.Position = UDim2.new(0.56, 0, 0.5, 0)
 DragHint.Size = UDim2.new(0, 110, 0, 18)
 DragHint.ZIndex = 21
 
@@ -694,13 +804,13 @@ MinimizeBtn.Parent = TopBar
 uiCorner(MinimizeBtn, 10)
 makeHover(MinimizeBtn, Theme.Surface2, Theme.Surface3, Theme.AccentSoft)
 
-MinimizeBtn.Position = UDim2.new(1, -86, 0, 14)
+MinimizeBtn.Position = UDim2.new(1, -90, 0, 19)
 
 do
 local HideBtn = Instance.new("TextButton")
 HideBtn.Name = "HideBtn"
 HideBtn.Size = UDim2.new(0, 34, 0, 34)
-HideBtn.Position = UDim2.new(1, -46, 0, 14)
+HideBtn.Position = UDim2.new(1, -48, 0, 19)
 HideBtn.BackgroundColor3 = Theme.Surface2
 HideBtn.BorderSizePixel = 0
 HideBtn.Text = "×"
@@ -758,8 +868,8 @@ TopLine.Parent = Main
 --------------------------------------------------------------------------------
 
 local ContentRoot = Instance.new("Frame")
-ContentRoot.Position = UDim2.new(0, 166, 0, 62)
-ContentRoot.Size = UDim2.new(1, -166, 1, -62)
+ContentRoot.Position = UDim2.new(0, 205, 0, 72)
+ContentRoot.Size = UDim2.new(1, -205, 1, -72)
 ContentRoot.BackgroundTransparency = 1
 ContentRoot.Parent = Main
 
@@ -779,10 +889,10 @@ local function createPage(name)
     page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     page.Visible = false
     page.Parent = ContentRoot
-    uiPadding(page, 18, 18, 16, 18)
+    uiPadding(page, 22, 22, 18, 22)
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 12)
+    layout.Padding = UDim.new(0, 14)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = page
 
@@ -792,31 +902,32 @@ end
 
 local HomePage = createPage("Home")
 local RidePage = createPage("Ride")
+local TonguePage = createPage("Tongue")
 local ChatPage = createPage("Chat")
 local SettingsPage = createPage("Settings")
 
 local function makeNavButton(key, text, symbol, order)
     local button = Instance.new("TextButton")
     button.Name = key .. "Nav"
-    button.Size = UDim2.new(1, 0, 0, 38)
-    button.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
+    button.Size = UDim2.new(1, 0, 0, 46)
+    button.BackgroundColor3 = Color3.fromRGB(31, 31, 35)
     button.BorderSizePixel = 0
     button.Text = ""
     button.AutoButtonColor = false
     button.LayoutOrder = order
     button.Parent = NavHolder
-    uiCorner(button, 10)
+    uiCorner(button, 14)
 
     local icon = label(button, symbol, 13, Theme.Muted, Enum.Font.GothamBold, Enum.TextXAlignment.Center)
-    icon.Size = UDim2.new(0, 30, 1, 0)
-    icon.Position = UDim2.new(0, 4, 0, 0)
+    icon.Size = UDim2.new(0, 34, 1, 0)
+    icon.Position = UDim2.new(0, 8, 0, 0)
 
     local txt = label(button, text, 10, Theme.Muted, Enum.Font.GothamMedium)
-    txt.Size = UDim2.new(1, -40, 1, 0)
-    txt.Position = UDim2.new(0, 38, 0, 0)
+    txt.Size = UDim2.new(1, -50, 1, 0)
+    txt.Position = UDim2.new(0, 46, 0, 0)
 
     local accent = Instance.new("Frame")
-    accent.Size = UDim2.new(0, 3, 0, 20)
+    accent.Size = UDim2.new(0, 3, 0, 18)
     accent.Position = UDim2.new(0, 0, 0.5, -10)
     accent.BackgroundColor3 = Theme.Accent
     accent.BackgroundTransparency = 1
@@ -836,13 +947,12 @@ end
 
 local HomeNav = makeNavButton("Home", "Home", "⌂", 1)
 local RideNav = makeNavButton("Ride", "Ride A Pet", "◆", 2)
-local ChatNav = makeNavButton("Chat", "Chat Global", "◈", 3)
-local SettingsNav = makeNavButton("Settings", "Settings", "⚙", 4)
+local TongueNav = makeNavButton("Tongue", "Tongue Escape", "◉", 3)
+local ChatNav = makeNavButton("Chat", "Chat Global", "◈", 4)
+local SettingsNav = makeNavButton("Settings", "Settings", "⚙", 5)
 
-
-if not IS_RIDE_A_PET then
-    RideNav.Visible = false
-end
+RideNav.Visible = IS_RIDE_A_PET
+TongueNav.Visible = IS_TONGUE_ESCAPE
 
 local function setPage(name, titleText, subtitleText)
     if activePage == name then return end
@@ -856,7 +966,7 @@ local function setPage(name, titleText, subtitleText)
     for key, data in pairs(navButtons) do
         local selected = key == name
         tw(data.Button, 0.16, {
-            BackgroundColor3 = selected and Theme.Surface2 or Color3.fromRGB(14, 15, 22)
+            BackgroundColor3 = selected and Theme.Surface2 or Color3.fromRGB(31, 31, 35)
         })
         tw(data.Text, 0.16, {
             TextColor3 = selected and Theme.Text or Theme.Muted
@@ -879,6 +989,10 @@ end)
 
 RideNav.MouseButton1Click:Connect(function()
     setPage("Ride", "Ride A Pet", "ESP, teleport e automações")
+end)
+
+TongueNav.MouseButton1Click:Connect(function()
+    setPage("Tongue", "Tongue Escape", "Farm, Auto Tongue e Auto Rebirth")
 end)
 
 ChatNav.MouseButton1Click:Connect(function()
@@ -915,12 +1029,12 @@ local function section(parent, titleText, subtitleText)
     card.Size = UDim2.new(1, 0, 0, 0)
     card.AutomaticSize = Enum.AutomaticSize.Y
     card.Parent = parent
-    uiCorner(card, 14)
-    uiStroke(card, Theme.Stroke, 1, 0.5)
-    uiPadding(card, 12, 12, 12, 12)
+    uiCorner(card, 18)
+    uiStroke(card, Theme.Stroke, 1, 0.72)
+    uiPadding(card, 16, 16, 15, 16)
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 8)
+    layout.Padding = UDim.new(0, 10)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = card
 
@@ -943,13 +1057,13 @@ end
 
 local function actionButton(parent, titleText, subtitleText, accentColor)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 50)
+    btn.Size = UDim2.new(1, 0, 0, 54)
     btn.BackgroundColor3 = Theme.Surface2
     btn.BorderSizePixel = 0
     btn.Text = ""
     btn.AutoButtonColor = false
     btn.Parent = parent
-    uiCorner(btn, 11)
+    uiCorner(btn, 14)
     uiStroke(btn, Theme.Stroke, 1, 0.55)
 
     local bar = Instance.new("Frame")
@@ -976,13 +1090,13 @@ local function toggleRow(parent, titleText, subtitleText, initial, callback)
     local state = initial and true or false
 
     local row = Instance.new("TextButton")
-    row.Size = UDim2.new(1, 0, 0, 56)
+    row.Size = UDim2.new(1, 0, 0, 60)
     row.BackgroundColor3 = Theme.Surface2
     row.BorderSizePixel = 0
     row.Text = ""
     row.AutoButtonColor = false
     row.Parent = parent
-    uiCorner(row, 11)
+    uiCorner(row, 14)
     uiStroke(row, Theme.Stroke, 1, 0.55)
 
     local title = label(row, titleText, 11, Theme.Text, Enum.Font.GothamSemibold)
@@ -994,16 +1108,16 @@ local function toggleRow(parent, titleText, subtitleText, initial, callback)
     sub.Size = UDim2.new(1, -72, 0, 13)
 
     local switch = Instance.new("Frame")
-    switch.Size = UDim2.new(0, 40, 0, 22)
-    switch.Position = UDim2.new(1, -52, 0.5, -11)
+    switch.Size = UDim2.new(0, 42, 0, 24)
+    switch.Position = UDim2.new(1, -54, 0.5, -12)
     switch.BackgroundColor3 = Theme.Surface3
     switch.BorderSizePixel = 0
     switch.Parent = row
     uiCorner(switch, 99)
 
     local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0, 16, 0, 16)
-    knob.Position = UDim2.new(0, 3, 0.5, -8)
+    knob.Size = UDim2.new(0, 18, 0, 18)
+    knob.Position = UDim2.new(0, 3, 0.5, -9)
     knob.BackgroundColor3 = Theme.Muted
     knob.BorderSizePixel = 0
     knob.Parent = switch
@@ -1012,7 +1126,7 @@ local function toggleRow(parent, titleText, subtitleText, initial, callback)
     local function render(animated)
         local switchColor = state and Theme.Accent or Theme.Surface3
         local knobColor = state and Theme.Text or Theme.Muted
-        local knobPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        local knobPos = state and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)
 
         if animated then
             tw(switch, 0.18, {BackgroundColor3 = switchColor})
@@ -1527,11 +1641,225 @@ do
     FooterMark.Size = UDim2.new(0, 180, 0, 14)
 end
 
+
+--------------------------------------------------------------------------------
+-- TONGUE ESCAPE PAGE
+--------------------------------------------------------------------------------
+
+do
+    local TongueMain = section(
+        TonguePage,
+        "Tongue Escape",
+        "Funções integradas ao ZyroHub para o PlaceId 122245938604556."
+    )
+
+    local TongueStatus = section(
+        TonguePage,
+        "Status",
+        "Monitor das automações do Tongue Escape."
+    )
+
+    local statusLine = label(
+        TongueStatus,
+        "Aguardando...",
+        9,
+        Theme.Muted,
+        Enum.Font.GothamMedium
+    )
+    statusLine.Size = UDim2.new(1, 0, 0, 22)
+
+    local autoFarmPosition = false
+    local autoTongue = false
+    local autoRebirth = false
+    local farmToken = 0
+    local tongueToken = 0
+    local rebirthToken = 0
+
+    local function setTongueStatus(message, color)
+        statusLine.Text = tostring(message)
+        statusLine.TextColor3 = color or Theme.Muted
+    end
+
+    local function getEventsFolder()
+        return ReplicatedStorage:FindFirstChild("Events")
+    end
+
+    local function startFarmLoop()
+        farmToken += 1
+        local token = farmToken
+
+        task.spawn(function()
+            while autoFarmPosition and token == farmToken do
+                local character = LocalPlayer.Character
+                local root = character and character:FindFirstChild("HumanoidRootPart")
+
+                if root then
+                    pcall(function()
+                        root.CFrame = CFrame.new(
+                            math.random(-13195, -13190),
+                            506,
+                            -559
+                        )
+                    end)
+                    setTongueStatus("Auto Farm ativo • mantendo posição", Theme.Success)
+                else
+                    setTongueStatus("Aguardando personagem...", Theme.Warning)
+                end
+
+                task.wait(0.03)
+            end
+        end)
+    end
+
+    local function startTongueLoop()
+        tongueToken += 1
+        local token = tongueToken
+
+        task.spawn(function()
+            while autoTongue and token == tongueToken do
+                local events = getEventsFolder()
+                local remote = events and events:FindFirstChild("AddTongue")
+
+                if remote and remote:IsA("RemoteEvent") then
+                    pcall(function()
+                        remote:FireServer()
+                    end)
+                    setTongueStatus("Auto Tongue ativo", Theme.Success)
+                else
+                    setTongueStatus("Remote AddTongue não encontrado", Theme.Warning)
+                end
+
+                task.wait(0.01)
+            end
+        end)
+    end
+
+    local function startRebirthLoop()
+        rebirthToken += 1
+        local token = rebirthToken
+
+        task.spawn(function()
+            while autoRebirth and token == rebirthToken do
+                local events = getEventsFolder()
+                local remote = events and events:FindFirstChild("RequestRebirth")
+
+                if remote and remote:IsA("RemoteFunction") then
+                    pcall(function()
+                        remote:InvokeServer()
+                    end)
+                    setTongueStatus("Auto Rebirth ativo", Theme.Success)
+                else
+                    setTongueStatus("Remote RequestRebirth não encontrado", Theme.Warning)
+                end
+
+                task.wait(1)
+            end
+        end)
+    end
+
+    toggleRow(
+        TongueMain,
+        "Auto Farm",
+        "Mantém seu personagem na área de farm usada pelo script original.",
+        false,
+        function(state)
+            autoFarmPosition = state
+
+            if state then
+                startFarmLoop()
+                notify("Tongue Escape", "Auto Farm ativado.", "success")
+            else
+                farmToken += 1
+                setTongueStatus("Auto Farm desativado", Theme.Muted)
+            end
+        end
+    )
+
+    toggleRow(
+        TongueMain,
+        "Auto Tongue",
+        "Dispara AddTongue automaticamente.",
+        false,
+        function(state)
+            autoTongue = state
+
+            if state then
+                startTongueLoop()
+                notify("Tongue Escape", "Auto Tongue ativado.", "success")
+            else
+                tongueToken += 1
+                setTongueStatus("Auto Tongue desativado", Theme.Muted)
+            end
+        end
+    )
+
+    toggleRow(
+        TongueMain,
+        "Auto Rebirth",
+        "Solicita rebirth automaticamente a cada segundo.",
+        false,
+        function(state)
+            autoRebirth = state
+
+            if state then
+                startRebirthLoop()
+                notify("Tongue Escape", "Auto Rebirth ativado.", "success")
+            else
+                rebirthToken += 1
+                setTongueStatus("Auto Rebirth desativado", Theme.Muted)
+            end
+        end
+    )
+
+    local AllToggle = actionButton(
+        TongueMain,
+        "Ativar farm completo",
+        "Liga Auto Farm + Auto Tongue + Auto Rebirth.",
+        Theme.Accent
+    )
+
+    AllToggle.MouseButton1Click:Connect(function()
+        autoFarmPosition = true
+        autoTongue = true
+        autoRebirth = true
+
+        startFarmLoop()
+        startTongueLoop()
+        startRebirthLoop()
+
+        setTongueStatus("Farm completo ativado", Theme.Success)
+        notify("Tongue Escape", "Farm completo iniciado.", "success")
+    end)
+
+    if not IS_TONGUE_ESCAPE then
+        setTongueStatus("Módulo disponível apenas no Tongue Escape.", Theme.Muted)
+    else
+        setTongueStatus("Tongue Escape detectado • pronto", Theme.Success)
+    end
+end
+
 --------------------------------------------------------------------------------
 -- RIDE A PET PAGE
 --------------------------------------------------------------------------------
 
 local RideMain = section(RidePage, "Automação", "Controles principais do Ride A Pet")
+
+toggleRow(
+    RideMain,
+    "Insta Interact",
+    "Remove o tempo de espera dos ProximityPrompts para interagir instantaneamente.",
+    true,
+    function(state)
+        instaInteractEnabled = state
+        if state then
+            refreshInstaInteract()
+            notify("Insta Interact", "Interações instantâneas ativadas.", "success")
+        else
+            notify("Insta Interact", "Desativado.", "warning")
+        end
+    end
+)
+
 
 local GlobalESP = toggleRow(
     RideMain,
@@ -2647,9 +2975,19 @@ do
             teleportToModel(foundEgg)
             task.wait(0.40)
 
-            -- Método de coleta do Ride A Pet.
-            holdEKey(3)
-            task.wait(0.20)
+            -- Insta Interact primeiro. Se não houver ProximityPrompt utilizável,
+            -- usa E como fallback.
+            local instantWorked = false
+            if instaInteractEnabled then
+                instantWorked = instantInteractTarget(foundEgg)
+            end
+
+            if instantWorked then
+                task.wait(0.35)
+            else
+                holdEKey(instaInteractEnabled and 0.12 or 3)
+                task.wait(0.20)
+            end
 
             -- Volta para a base SEM depender do egg sumir de RenderedEggs.
             teleportToHomePlot()
@@ -3633,13 +3971,13 @@ local QuickDock = Instance.new("Frame")
 QuickDock.Name = "QuickDock"
 QuickDock.AnchorPoint = Vector2.new(0.5, 0)
 QuickDock.Position = UDim2.new(0.5, 0, 0, 2)
-QuickDock.Size = UDim2.new(0, 224, 0, 34)
+QuickDock.Size = UDim2.new(0, 238, 0, 38)
 QuickDock.BackgroundColor3 = Theme.Surface
-QuickDock.BackgroundTransparency = 0.05
+QuickDock.BackgroundTransparency = 0.12
 QuickDock.BorderSizePixel = 0
 QuickDock.ZIndex = 50
 QuickDock.Parent = ControllerGui
-uiCorner(QuickDock, 10)
+uiCorner(QuickDock, 13)
 uiStroke(QuickDock, Theme.Stroke, 1, 0.35)
 
 local DockLayout = Instance.new("UIListLayout")
@@ -3651,7 +3989,7 @@ DockLayout.Parent = QuickDock
 
 local function dockButton(symbol, tooltip)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0, 45, 0, 24)
+    b.Size = UDim2.new(0, 47, 0, 26)
     b.BackgroundColor3 = Theme.Surface2
     b.BorderSizePixel = 0
     b.Text = symbol
@@ -3662,7 +4000,7 @@ local function dockButton(symbol, tooltip)
     b.ZIndex = 51
     b.Parent = QuickDock
     b:SetAttribute("Tooltip", tooltip)
-    uiCorner(b, 9)
+    uiCorner(b, 10)
     makeHover(b, Theme.Surface2, Theme.Surface3, Theme.AccentSoft)
     return b
 end
@@ -4022,16 +4360,21 @@ end
 if IS_MOBILE then
     if IS_RIDE_A_PET then
         setPage("Ride", "Ride A Pet", "Modo mobile")
+    elseif IS_TONGUE_ESCAPE then
+        setPage("Tongue", "Tongue Escape", "Modo mobile")
     else
         setPage("Chat", "Chat Global", "Modo mobile universal")
     end
-    notify("Lordzy Hub", "Modo mobile detectado automaticamente.", "success")
+    notify("ZyroHub", "Modo mobile detectado automaticamente.", "success")
 elseif IS_RIDE_A_PET then
     setPage("Home", "Home", "Visão geral do hub")
-    notify("Lordzy Hub", "Ride A Pet detectado. Todos os módulos disponíveis.", "success")
+    notify("ZyroHub", "Ride A Pet detectado.", "success")
+elseif IS_TONGUE_ESCAPE then
+    setPage("Tongue", "Tongue Escape", "Farm, Auto Tongue e Auto Rebirth")
+    notify("ZyroHub", "Tongue Escape detectado. Módulo carregado.", "success")
 else
     setPage("Chat", "Chat Global", "Modo universal")
-    notify("Lordzy Hub", "Modo universal: somente módulos compatíveis.", "success")
+    notify("ZyroHub", "Modo universal: somente módulos compatíveis.", "success")
 end
 
 local finalMainSize = Main.Size
@@ -4107,19 +4450,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.14", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.17", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Server Hop Forçado Após Coleta", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Multi-Game • Tongue Escape", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Depois de coletar qualquer ALVO, o hub agora força Server Hop imediatamente. Ele não depende mais do RenderedEggs do servidor atual, evitando ficar preso em ovos fantasmas.",
+        "Novo visual inspirado na HTML 2097 POP e nas referências TimerMo: painel maior, vidro escuro, vermelho carmesim, cartões suaves e navegação mais limpa. Todas as funções da v12.14 foram mantidas.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -4131,7 +4474,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Coleta o ALVO\n✓ Volta para a base\n✓ Server Hop obrigatório após coleta\n✓ Ignora RenderedEggs fantasma\n✓ Retry automático se o hop falhar",
+        "✓ Layout central maior e mais limpo\n✓ Sidebar estilo painel de ferramenta\n✓ Paleta carvão + vermelho carmesim\n✓ Cards translúcidos e arredondados\n✓ Funções da v12.14 preservadas",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4175,4 +4518,4 @@ do
 end
 
 
-print("[Lordzy POP v12.14 FORCE HOP AFTER COLLECT] LOADED SUCCESSFULLY")
+print("[ZYRO HUB v12.17 TONGUE ESCAPE] LOADED SUCCESSFULLY")
