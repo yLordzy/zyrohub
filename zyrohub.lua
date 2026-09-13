@@ -11,7 +11,7 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local Stats = game:GetService("Stats")
 
-print("[Lordzy POP v12.10.1 CONFIG SAVE FIX] STARTING...")
+print("[Lordzy POP v12.11 AUTO COLLECT EGG] STARTING...")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -2529,6 +2529,69 @@ do
     local eggHopToken = 0
     local eggHopBusy = false
 
+    local autoCollectBusy = false
+
+    local function collectFoundTargetEgg(foundEgg)
+        if autoCollectBusy or not foundEgg or not foundEgg.Parent then
+            return
+        end
+
+        autoCollectBusy = true
+
+        task.spawn(function()
+            notify(
+                "Egg encontrado!",
+                "Indo pegar " .. tostring(foundEgg.Name) .. "...",
+                "success"
+            )
+
+            -- Vai até o egg.
+            teleportToModel(foundEgg)
+            task.wait(0.45)
+
+            -- Primeiro tenta o mesmo método que já funciona no Auto Best Egg.
+            pcall(function()
+                holdEKey(3)
+            end)
+
+            task.wait(0.25)
+
+            -- Fallback: alguns eggs usam ProximityPrompt.
+            pcall(function()
+                local env = (getgenv and getgenv()) or _G
+                local firePrompt = nil
+
+                if type(fireproximityprompt) == "function" then
+                    firePrompt = fireproximityprompt
+                elseif type(env.fireproximityprompt) == "function" then
+                    firePrompt = env.fireproximityprompt
+                end
+
+                if type(firePrompt) == "function" and foundEgg and foundEgg.Parent then
+                    for _, desc in ipairs(foundEgg:GetDescendants()) do
+                        if desc:IsA("ProximityPrompt") and desc.Enabled then
+                            firePrompt(desc)
+                            task.wait(0.15)
+                        end
+                    end
+                end
+            end)
+
+            task.wait(0.35)
+
+            -- Volta automaticamente para a base depois da tentativa de coleta.
+            teleportToHomePlot()
+
+            notify(
+                "Egg Filter Hop",
+                tostring(foundEgg.Name) .. " processado. Voltando para sua base.",
+                "success"
+            )
+
+            autoCollectBusy = false
+        end)
+    end
+
     local function stopEggHop(foundEgg)
         LordzyHopState.eggHopEnabled = false
         eggHopToken += 1
@@ -2541,17 +2604,20 @@ do
         if foundEgg then
             FilterStatusTitle.Text = "ENCONTRADO: " .. foundEgg.Name
             FilterStatusTitle.TextColor3 = Theme.Success
-            FilterStatusSub.Text = "Server Hop parado neste servidor."
+            FilterStatusSub.Text = "Encontrado. Pegando o egg e voltando para a base..."
 
             notify(
                 "Egg encontrado!",
-                foundEgg.Name .. " apareceu neste servidor. Server Hop parado.",
+                foundEgg.Name .. " apareceu. Indo pegar e levar para sua base.",
                 "success"
             )
 
             pcall(function()
                 updateEggESP(foundEgg)
             end)
+
+            -- Encontrou um dos ALVOS: pega e leva para a base automaticamente.
+            collectFoundTargetEgg(foundEgg)
         end
     end
 
@@ -3949,19 +4015,19 @@ do
     uiCorner(ChangelogCard, 16)
     uiStroke(ChangelogCard, Theme.Accent, 1, 0.25)
 
-    local Version = label(ChangelogCard, "NOVIDADES • v12.10.1", 9, Theme.Accent2, Enum.Font.GothamBold)
+    local Version = label(ChangelogCard, "NOVIDADES • v12.11", 9, Theme.Accent2, Enum.Font.GothamBold)
     Version.Position = UDim2.new(0, 18, 0, 16)
     Version.Size = UDim2.new(1, -36, 0, 18)
     Version.ZIndex = 202
 
-    local Title = label(ChangelogCard, "Config corrigida entre servidores", 16, Theme.Text, Enum.Font.GothamBold)
+    local Title = label(ChangelogCard, "Auto Coleta + Retorno para Base", 16, Theme.Text, Enum.Font.GothamBold)
     Title.Position = UDim2.new(0, 18, 0, 39)
     Title.Size = UDim2.new(1, -36, 0, 27)
     Title.ZIndex = 202
 
     local Desc = label(
         ChangelogCard,
-        "Corrigido o salvamento dos ALVOS entre servidores. O botão ALVO agora grava a config real antes do teleport e recarrega no próximo servidor.",
+        "Além de lembrar os ALVOS entre servidores, agora quando encontrar um egg marcado o hub vai até ele, tenta coletar e volta automaticamente para sua base.",
         9,
         Theme.Muted,
         Enum.Font.Gotham
@@ -3973,7 +4039,7 @@ do
 
     local Changes = label(
         ChangelogCard,
-        "✓ Corrigido Save() do botão ALVO\n✓ Suporte a writefile global/getgenv\n✓ Config salva antes do teleport\n✓ Logs de Saved/Loaded no console\n✓ Retoma os mesmos ALVOS no próximo servidor",
+        "✓ Mantém os ALVOS entre servidores\n✓ Para o Server Hop ao encontrar um alvo\n✓ Teleporta automaticamente até o egg\n✓ Segura E / tenta ProximityPrompt\n✓ Volta para sua base após coletar",
         10,
         Theme.Text,
         Enum.Font.GothamMedium
@@ -4017,4 +4083,4 @@ do
 end
 
 
-print("[Lordzy POP v12.10.1 CONFIG SAVE FIX] LOADED SUCCESSFULLY")
+print("[Lordzy POP v12.11 AUTO COLLECT EGG] LOADED SUCCESSFULLY")
