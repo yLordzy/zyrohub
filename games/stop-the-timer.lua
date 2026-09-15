@@ -10,7 +10,11 @@ local Normal = Workspace:WaitForChild("GameStations"):WaitForChild("Normal")
 local UI = getgenv().ZyroUI
 if not UI then error("[ZyroHub StopTimer] UI não carregada") end
 
-UI:SetGame("Stop The Timer", "Auto Press")
+UI:SetGame("Stop The Timer")
+UI:Tab("Auto Press")
+UI:Tab("Precisão")
+UI:Tab("Controles")
+UI:UseTab("Auto Press")
 
 local autoPress = false
 local station, activeTimer, activeSide, button
@@ -214,12 +218,12 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
-UI:Section("Controles")
+UI:UseTab("Controles")
 UI:Button("SPACE = Press manual","Jogando legit, basta apertar ESPAÇO em vez de clicar no botão.",function()
     UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
 end)
 
-UI:Section("Precisão / Legit")
+UI:UseTab("Precisão")
 
 UI:Slider(
     "Ajuste do Press",
@@ -233,6 +237,8 @@ UI:Slider(
         print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
     end
 )
+
+UI:UseTab("Auto Press")
 
 UI:Toggle("Auto Press","Lê o alvo e aperta automaticamente no tempo.",false,function(on)
     autoPress=on
@@ -293,4 +299,4 @@ task.spawn(function()
 end)
 
 print("[STOP TIMER] SPACE: press manual ativo")
-print("[ZYRO HUB] Stop The Timer v2.7 LOCAL SIDE + SLIDER carregado")
+print("[ZYRO HUB] Stop The Timer v2.8 TABS + LOCAL SIDE + SLIDER carregado")
