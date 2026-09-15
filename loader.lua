@@ -1,11 +1,11 @@
--- ZYRO HUB LOADER v1.5 • GAME FIRST, SHARED CHAT LAST
+-- ZYRO HUB LOADER v1.6 • MULTI-GAME ROUTER
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local BASE="https://raw.githubusercontent.com/yLordzy/zyrohub/refs/heads/main/"
 local Players=game:GetService("Players")
 local HttpService=game:GetService("HttpService")
 
-print("[ZYRO HUB LOADER v1.5] STARTING...")
+print("[ZYRO HUB LOADER v1.6] STARTING...")
 
 local function fetch(path)
     local sep=path:find("?",1,true) and "&" or "?"
@@ -23,48 +23,84 @@ local function fetch(path)
     if not fn then
         error("[ZyroHub Loader] Erro compilando "..path..": "..tostring(err))
     end
+
     return fn()
 end
 
--- 1. Cria a UI.
+-- 1. UI compartilhada
 local UI=fetch("core/ui.lua")
 getgenv().ZyroUI=UI
 
+-- Cada jogo aponta para seu próprio módulo.
+-- As tabs são criadas PELO MÓDULO DO JOGO e não pelo loader.
 local routes={
-    [124216119978534]={module="games/ride-a-pet.lua", defaultTab="Principal"},
-    [122245938604556]={module="games/tongue-escape.lua", defaultTab="Farm"},
-    [139988436996662]={module="games/stop-the-timer.lua", defaultTab="Auto Press"},
+    [124216119978534]={
+        name="Ride A Pet",
+        module="games/ride-a-pet.lua",
+        legacyTab="Principal"
+    },
+
+    [122245938604556]={
+        name="Tongue Escape",
+        module="games/tongue-escape.lua",
+        legacyTab="Farm"
+    },
+
+    [139988436996662]={
+        name="Stop The Timer",
+        module="games/stop-the-timer.lua",
+        legacyTab="Auto Press"
+    },
+
+    [109203247742910]={
+        name="Swing For An Egg",
+        module="games/swing-for-an-egg.lua",
+        legacyTab="Teleports"
+    },
 }
 
+-- Fallback do Stop The Timer caso o PlaceId mude.
 local function looksLikeStopTimer()
     local pg=Players.LocalPlayer:WaitForChild("PlayerGui",10)
     if not pg then return false end
+
     local g=pg:FindFirstChild("GameUI") or pg:FindFirstChild("PracticeUI")
     return g and g:FindFirstChild("SecondsToSet",true)~=nil
 end
 
 local route=routes[game.PlaceId]
+
 if not route and looksLikeStopTimer() then
-    route={module="games/stop-the-timer.lua", defaultTab="Auto Press"}
+    route={
+        name="Stop The Timer",
+        module="games/stop-the-timer.lua",
+        legacyTab="Auto Press"
+    }
 end
 
 if not route then
-    UI:Notify("ZyroHub","Jogo ainda não suportado. PlaceId: "..tostring(game.PlaceId),"warn")
+    UI:Notify(
+        "ZyroHub",
+        "Jogo ainda não suportado. PlaceId: "..tostring(game.PlaceId),
+        "warn"
+    )
     return
 end
 
--- 2. O módulo do jogo vem ANTES.
--- SetGame() limpa/recria as tabs, então ele não pode rodar depois do Chat.
+print("[ZyroHub Loader] Game:",route.name)
 print("[ZyroHub Loader] Game module:",route.module)
+
+-- 2. Módulo específico do jogo.
+-- Ele é responsável pelas próprias tabs.
 fetch(route.module)
 
--- Preserve legacy/default content using the CORRECT name for each game.
--- Modules that already created real tabs are left untouched.
-if UI.PromoteDefaultToTab then
-    UI:PromoteDefaultToTab(route.defaultTab)
+-- Apenas compatibilidade com módulos antigos que ainda colocam
+-- controles na página Default. Módulos com tabs próprias não são alterados.
+if UI.PromoteDefaultToTab and route.legacyTab then
+    UI:PromoteDefaultToTab(route.legacyTab)
 end
 
--- 3. Chat compartilhado vem POR ÚLTIMO.
+-- 3. Chat compartilhado por último.
 fetch("core/chat.lua")
 
-print("[ZYRO HUB LOADER v1.5] READY")
+print("[ZYRO HUB LOADER v1.6] READY • "..route.name)
