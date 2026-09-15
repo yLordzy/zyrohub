@@ -133,14 +133,62 @@ function UI:SetVisible(v)
 end
 function UI:Notify(t,m,k) print(("[ZyroHub] %s: %s"):format(tostring(t),tostring(m))) end
 
-local dock=Instance.new("ScreenGui"); dock.Name="ZyroHubMobileDock"; dock.ResetOnSpawn=false; dock.IgnoreGuiInset=true; dock.Parent=parent
-local df=Instance.new("Frame",dock); df.AnchorPoint=Vector2.new(.5,0); df.Position=UDim2.new(.5,0,0,4); df.Size=UDim2.fromOffset(220,38); df.BackgroundColor3=Color3.fromRGB(14,15,22); df.BorderSizePixel=0; Instance.new("UICorner",df).CornerRadius=UDim.new(0,11)
-local dl=Instance.new("UIListLayout",df); dl.FillDirection=Enum.FillDirection.Horizontal; dl.HorizontalAlignment=Enum.HorizontalAlignment.Center; dl.VerticalAlignment=Enum.VerticalAlignment.Center; dl.Padding=UDim.new(0,5)
-for _,v in ipairs({{"⌂",function() sg.Enabled=true end},{"◆",function() main.Position=UDim2.new(.5,-360,.5,-235) end},{"T",function() end},{"—",function() sg.Enabled=not sg.Enabled end}}) do
-    local b=Instance.new("TextButton",df); b.Size=UDim2.fromOffset(48,28); b.Text=v[1]; b.Font=Enum.Font.GothamBold; b.TextSize=12; b.TextColor3=Color3.new(1,1,1); b.BackgroundColor3=Color3.fromRGB(22,23,32); b.BorderSizePixel=0; Instance.new("UICorner",b).CornerRadius=UDim.new(0,8); b.MouseButton1Click:Connect(v[2])
-end
+local dock=Instance.new("ScreenGui")
+dock.Name="ZyroHubMobileDock"
+dock.ResetOnSpawn=false
+dock.IgnoreGuiInset=true
+dock.DisplayOrder=999998
+dock.Parent=parent
+
+local brand=Instance.new("TextButton",dock)
+brand.Name="ZyroHubBrand"
+brand.AnchorPoint=Vector2.new(.5,0)
+brand.Position=UDim2.new(.5,0,0,4)
+brand.Size=UDim2.fromOffset(150,38)
+brand.BackgroundColor3=Color3.fromRGB(14,15,22)
+brand.BorderSizePixel=0
+brand.AutoButtonColor=false
+brand.Text=""
+Instance.new("UICorner",brand).CornerRadius=UDim.new(0,11)
+
+local bs=Instance.new("UIStroke",brand)
+bs.Color=Color3.fromRGB(82,96,255)
+bs.Transparency=.35
+bs.Thickness=1
+
+local home=Instance.new("TextLabel",brand)
+home.BackgroundTransparency=1
+home.Position=UDim2.fromOffset(10,0)
+home.Size=UDim2.fromOffset(26,38)
+home.Text="⌂"
+home.Font=Enum.Font.GothamBold
+home.TextSize=16
+home.TextColor3=Color3.fromRGB(180,190,255)
+
+local logo=Instance.new("TextLabel",brand)
+logo.BackgroundTransparency=1
+logo.Position=UDim2.fromOffset(39,0)
+logo.Size=UDim2.new(1,-47,1,0)
+logo.Text="ZYRO HUB"
+logo.Font=Enum.Font.GothamBold
+logo.TextSize=13
+logo.TextXAlignment=Enum.TextXAlignment.Left
+logo.TextColor3=Color3.new(1,1,1)
+
+brand.MouseButton1Click:Connect(function()
+    main.Visible=not main.Visible
+end)
+
+brand.MouseEnter:Connect(function()
+    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(22,23,32)}):Play()
+end)
+brand.MouseLeave:Connect(function()
+    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(14,15,22)}):Play()
+end)
+
 local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
+print("[ZYRO HUB] UI v1.5 BRAND carregada")
 return UI
