@@ -7,6 +7,8 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
+local RunService = game:GetService("RunService")
 
 local LP = Players.LocalPlayer
 local UI = getgenv().ZyroUI
@@ -35,6 +37,7 @@ env.ZyroRideState = env.ZyroRideState or {
     insta = true,
     autoBest = false,
     autoHop = false,
+    antiGameplayPaused = true,
 }
 
 local State = env.ZyroRideState
@@ -292,20 +295,67 @@ Workspace.DescendantAdded:Connect(function(d)
     if d:IsA("ProximityPrompt") then task.defer(applyPrompt,d) end
 end)
 
+local function requestStreamAtTarget(target)
+    if not target then return end
+
+    local pos = nil
+    if target:IsA("Model") then
+        pos = target:GetPivot().Position
+    elseif target:IsA("BasePart") then
+        pos = target.Position
+    end
+
+    if not pos then return end
+
+    -- Carrega a região do egg SEM mover o personagem.
+    pcall(function()
+        LP:RequestStreamAroundAsync(pos, 2)
+    end)
+end
+
 local function interactTarget(target)
     if not target then return false end
+
+    -- Primeiro tenta carregar a área do egg sem TP.
+    requestStreamAtTarget(target)
+    task.wait(.15)
+
     local fp = (type(fireproximityprompt)=="function" and fireproximityprompt)
         or env.fireproximityprompt
+
     local fired = false
+
+    -- Tenta prompts no próprio egg e em descendentes.
+    local prompts = {}
+
+    if target:IsA("ProximityPrompt") then
+        prompts[#prompts+1] = target
+    end
+
     for _,d in ipairs(target:GetDescendants()) do
         if d:IsA("ProximityPrompt") and d.Enabled then
-            applyPrompt(d)
-            if type(fp)=="function" then
-                local ok = pcall(function() fp(d,0) end)
-                fired = fired or ok
-            end
+            prompts[#prompts+1] = d
         end
     end
+
+    for _,prompt in ipairs(prompts) do
+        applyPrompt(prompt)
+
+        -- Amplia alcance apenas no cliente para executores que respeitam a distância local.
+        pcall(function()
+            prompt.MaxActivationDistance = math.max(prompt.MaxActivationDistance, 100000)
+            prompt.RequiresLineOfSight = false
+            prompt.HoldDuration = 0
+        end)
+
+        if type(fp)=="function" then
+            local ok = pcall(function()
+                fp(prompt, 0)
+            end)
+            fired = fired or ok
+        end
+    end
+
     return fired
 end
 
@@ -328,11 +378,11 @@ local function startAutoBest()
         while State.autoBest and token == autoBestToken do
             local e = findCherub()
             if e and e.Parent then
-                teleportTo(e)
-                task.wait(.25)
-                if not interactTarget(e) then holdE(.3) end
-                task.wait(.2)
-                teleportHome()
+                -- Coleta remota: não move o player e não faz o egg "voltar".
+                local worked = interactTarget(e)
+                if worked then
+                    UI:Notify("Auto Best Egg","Interação remota enviada para "..e.Name)
+                end
                 task.wait(.8)
             else
                 task.wait(.4)
@@ -341,25 +391,183 @@ local function startAutoBest()
     end)
 end
 
-local function hopServer()
-    local cursor = ""
-    for _=1,5 do
-        local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100%s")
-            :format(game.GameId, cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or "")
-        local ok, body = pcall(function() return game:HttpGet(url) end)
-        if not ok then return false end
+local hopBusy = false
 
-        local data = HttpService:JSONDecode(body)
-        for _,srv in ipairs(data.data or {}) do
-            if srv.id ~= game.JobId and (srv.playing or 0) < (srv.maxPlayers or 0) then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId,srv.id,LP)
-                return true
+local function executorRequest(url)
+    local function validBody(body)
+        return type(body)=="string" and #body>2
+    end
+
+    -- Primeiro tenta o HttpGet do executor.
+    local ok, body = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    if ok and validBody(body) then
+        return body, nil
+    end
+
+    -- Fallback para executores que expõem request/http_request/syn.request/etc.
+    local req = nil
+    if type(env.request)=="function" then
+        req=env.request
+    elseif type(env.http_request)=="function" then
+        req=env.http_request
+    elseif env.syn and type(env.syn.request)=="function" then
+        req=env.syn.request
+    elseif env.http and type(env.http.request)=="function" then
+        req=env.http.request
+    elseif env.fluxus and type(env.fluxus.request)=="function" then
+        req=env.fluxus.request
+    end
+
+    if type(req)=="function" then
+        local reqOk, response = pcall(req,{
+            Url=url,
+            Method="GET",
+            Headers={
+                ["Accept"]="application/json",
+                ["Cache-Control"]="no-cache"
+            }
+        })
+        if reqOk and type(response)=="table" then
+            local status=tonumber(response.StatusCode or response.Status or response.status_code)
+            local rb=response.Body or response.body
+            if status and (status<200 or status>=300) then
+                return nil,"HTTP_STATUS_"..tostring(status)
+            end
+            if validBody(rb) then return rb,nil end
+        end
+    end
+    return nil,"HTTP_REQUEST_FAILED"
+end
+
+local function fetchPublicServers(cursor)
+    -- IMPORTANTE: este endpoint usa PlaceId, não GameId/UniverseId.
+    local url="https://games.roblox.com/v1/games/"..
+        tostring(game.PlaceId)..
+        "/servers/Public?sortOrder=Asc&excludeFullGames=true&limit=100"
+
+    if cursor and cursor~="" then
+        url=url.."&cursor="..HttpService:UrlEncode(cursor)
+    end
+
+    local body,err=executorRequest(url)
+    if not body then return nil,err end
+
+    local ok,data=pcall(function()
+        return HttpService:JSONDecode(body)
+    end)
+    if not ok or type(data)~="table" then
+        warn("[ZYRO ServerHop] JSON inválido:",tostring(body):sub(1,180))
+        return nil,"JSON_DECODE_FAILED"
+    end
+
+    if type(data.errors)=="table" and #data.errors>0 then
+        warn("[ZYRO ServerHop] API Roblox retornou erro:",tostring(data.errors[1] and data.errors[1].message))
+        return nil,"ROBLOX_API_ERROR"
+    end
+
+    if type(data.data)~="table" then
+        return nil,"INVALID_SERVER_RESPONSE"
+    end
+
+    return data,nil
+end
+
+local function findHopServer()
+    local cursor=nil
+    local pages=0
+    local candidates={}
+    local lastError=nil
+
+    repeat
+        pages+=1
+        local page,err=fetchPublicServers(cursor)
+        if not page then
+            lastError=err
+            break
+        end
+
+        for _,srv in ipairs(page.data or {}) do
+            local id=tostring(srv.id or "")
+            local playing=tonumber(srv.playing) or 0
+            local maxPlayers=tonumber(srv.maxPlayers) or 0
+            if id~="" and id~=game.JobId and maxPlayers>0 and playing<maxPlayers then
+                candidates[#candidates+1]={
+                    id=id,
+                    playing=playing,
+                    maxPlayers=maxPlayers
+                }
             end
         end
-        cursor = data.nextPageCursor or ""
-        if cursor == "" then break end
+
+        cursor=page.nextPageCursor
+    until not cursor or cursor=="" or pages>=5 or #candidates>=20
+
+    if #candidates==0 then
+        return nil,lastError or "NO_SERVERS"
     end
-    return false
+
+    table.sort(candidates,function(a,b)
+        if a.playing==b.playing then return a.id<b.id end
+        return a.playing<b.playing
+    end)
+
+    -- Não cai sempre no mesmo servidor.
+    local pool=math.min(8,#candidates)
+    return candidates[math.random(1,pool)],nil
+end
+
+local function hopServer()
+    if hopBusy then
+        UI:Notify("Server Hop","Já estou procurando um servidor.")
+        return false
+    end
+
+    hopBusy=true
+    UI:Notify("Server Hop","Procurando outro servidor...")
+
+    local server,reason=findHopServer()
+    if not server then
+        hopBusy=false
+        warn("[ZYRO ServerHop] Falhou:",reason)
+        UI:Notify("Server Hop","Falha: "..tostring(reason))
+        return false
+    end
+
+    print(
+        "[ZYRO ServerHop] Indo para:",
+        server.id,
+        "Players:",
+        tostring(server.playing).."/"..tostring(server.maxPlayers)
+    )
+
+    UI:Notify(
+        "Server Hop",
+        "Entrando em outro servidor ("..
+        tostring(server.playing).."/"..tostring(server.maxPlayers)..")..."
+    )
+
+    local ok,err=pcall(function()
+        TeleportService:TeleportToPlaceInstance(
+            game.PlaceId,
+            server.id,
+            LP
+        )
+    end)
+
+    if not ok then
+        hopBusy=false
+        warn("[ZYRO ServerHop] Teleport falhou:",err)
+        UI:Notify("Server Hop","Servidor encontrado, mas o teleport falhou.")
+        return false
+    end
+
+    task.delay(8,function()
+        hopBusy=false
+    end)
+
+    return true
 end
 
 local function wantedEgg()
@@ -385,7 +593,10 @@ local function startAutoHop()
             local found = wantedEgg()
             if found then
                 UI:Notify("Egg Track","Alvo encontrado: "..found.Name)
-                teleportTo(found)
+                local worked = interactTarget(found)
+                if worked then
+                    UI:Notify("Egg Track","Tentativa de coleta remota enviada.")
+                end
                 State.autoHop = false
                 break
             end
@@ -393,6 +604,100 @@ local function startAutoHop()
             UI:Notify("Server Hop","Alvo não encontrado. Mudando de servidor...")
             if hopServer() then break end
             task.wait(10)
+        end
+    end)
+end
+
+
+-- =========================================================
+-- ANTI GAMEPLAY PAUSED
+-- =========================================================
+-- O Ride A Pet usa streaming. Teleportes longos podem acionar o estado
+-- Player.GameplayPaused enquanto a região de destino ainda está carregando.
+-- Este modo:
+--   1) remove o modal padrão;
+--   2) tenta desativar StreamingIntegrityMode no cliente quando o ambiente permite;
+--   3) pede streaming ao redor do personagem quando a pausa for detectada.
+local antiPauseConnection = nil
+local antiPauseHeartbeat = nil
+local lastStreamRequest = 0
+
+local function requestStreamHere()
+    local r = root()
+    if not r then return end
+    if os.clock() - lastStreamRequest < 0.35 then return end
+    lastStreamRequest = os.clock()
+
+    task.spawn(function()
+        pcall(function()
+            LP:RequestStreamAroundAsync(r.Position, 2)
+        end)
+    end)
+end
+
+local function tryDisableStreamingPause()
+    -- Remove somente a tela/modal oficial.
+    pcall(function()
+        GuiService:SetGameplayPausedNotificationEnabled(false)
+    end)
+
+    -- Em jogos/ambientes onde a propriedade é gravável pelo cliente.
+    pcall(function()
+        Workspace.StreamingIntegrityMode = Enum.StreamingIntegrityMode.Disabled
+    end)
+
+    -- Fallback para ambientes que expõem sethiddenproperty.
+    local shp = rawget(env, "sethiddenproperty")
+    if type(shp) ~= "function" and type(sethiddenproperty) == "function" then
+        shp = sethiddenproperty
+    end
+
+    if type(shp) == "function" then
+        pcall(function()
+            shp(Workspace, "StreamingIntegrityMode", Enum.StreamingIntegrityMode.Disabled)
+        end)
+    end
+end
+
+local function stopAntiGameplayPaused()
+    if antiPauseConnection then
+        pcall(function() antiPauseConnection:Disconnect() end)
+        antiPauseConnection = nil
+    end
+    if antiPauseHeartbeat then
+        pcall(function() antiPauseHeartbeat:Disconnect() end)
+        antiPauseHeartbeat = nil
+    end
+
+    -- Reabilita só a notificação padrão. O modo de streaming original
+    -- pode ser controlado pelo jogo/servidor e não é forçado aqui.
+    pcall(function()
+        GuiService:SetGameplayPausedNotificationEnabled(true)
+    end)
+end
+
+local function startAntiGameplayPaused()
+    stopAntiGameplayPaused()
+    tryDisableStreamingPause()
+    requestStreamHere()
+
+    antiPauseConnection = LP:GetPropertyChangedSignal("GameplayPaused"):Connect(function()
+        if not State.antiGameplayPaused then return end
+
+        if LP.GameplayPaused then
+            -- Tenta carregar imediatamente a área atual/destino.
+            tryDisableStreamingPause()
+            requestStreamHere()
+        end
+    end)
+
+    antiPauseHeartbeat = RunService.Heartbeat:Connect(function()
+        if not State.antiGameplayPaused then return end
+
+        -- Reaplica com baixa frequência, porque alguns jogos reconfiguram
+        -- StreamingIntegrityMode depois do carregamento.
+        if LP.GameplayPaused then
+            requestStreamHere()
         end
     end)
 end
@@ -465,6 +770,16 @@ do
             end
         end
     end)
+    toggle(automation,"Anti Gameplay Paused","Evita a pausa de streaming durante teleports e esconde o modal.",State.antiGameplayPaused,function(v)
+        State.antiGameplayPaused=v
+        if v then
+            startAntiGameplayPaused()
+            UI:Notify("Anti Pause","Anti Gameplay Paused ativado.")
+        else
+            stopAntiGameplayPaused()
+            UI:Notify("Anti Pause","Anti Gameplay Paused desativado.")
+        end
+    end)
     toggle(automation,"Auto Best Egg","Procura Cherub, coleta e volta para sua plot.",State.autoBest,function(v)
         State.autoBest=v
         autoBestToken+=1
@@ -475,9 +790,18 @@ do
     action(quick,"TP HOME","Voltar para sua plot.",function()
         if not teleportHome() then UI:Notify("Teleport","Sua plot não foi encontrada.") end
     end)
-    action(quick,"IR PARA CHERUB","Teleporta para o primeiro Cherub encontrado.",function()
+    action(quick,"COLETAR CHERUB","Tenta interagir com o Cherub sem mover seu personagem.",function()
         local e=findCherub()
-        if e then teleportTo(e) else UI:Notify("Ride A Pet","Nenhum Cherub encontrado.") end
+        if e then
+            local worked=interactTarget(e)
+            if worked then
+                UI:Notify("Ride A Pet","Interação remota enviada para "..e.Name)
+            else
+                UI:Notify("Ride A Pet","Prompt remoto não ficou disponível.")
+            end
+        else
+            UI:Notify("Ride A Pet","Nenhum Cherub encontrado.")
+        end
     end)
 end
 
@@ -754,9 +1078,18 @@ do
     Add.MouseButton1Click:Connect(addManual)
     Manual.FocusLost:Connect(function(enter) if enter then addManual() end end)
 
-    action(targetsCard,"IR PARA ALVO DISPONÍVEL","Procura um dos alvos selecionados neste servidor.",function()
+    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Procura e tenta interagir com um alvo sem TP.",function()
         local e=wantedEgg()
-        if e then teleportTo(e) else UI:Notify("Egg Track","Nenhum alvo selecionado está neste servidor.") end
+        if e then
+            local worked=interactTarget(e)
+            if worked then
+                UI:Notify("Egg Track","Interação remota enviada para "..e.Name)
+            else
+                UI:Notify("Egg Track","Não consegui disparar o prompt remotamente.")
+            end
+        else
+            UI:Notify("Egg Track","Nenhum alvo selecionado está neste servidor.")
+        end
     end)
     action(targetsCard,"LIMPAR ALVOS","Remove todos os targets selecionados.",function()
         table.clear(State.targets)
@@ -783,17 +1116,22 @@ do
         if v then startAutoHop() end
     end)
 
-    action(serverCard,"VERIFICAR ALVO AGORA","Se encontrar um alvo neste servidor, teleporta até ele.",function()
+    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, tenta interagir remotamente sem TP.",function()
         local e=wantedEgg()
         if e then
             UI:Notify("Egg Track","Encontrado: "..e.Name)
-            teleportTo(e)
+            local worked=interactTarget(e)
+            if worked then
+                UI:Notify("Egg Track","Interação remota enviada.")
+            else
+                UI:Notify("Egg Track","Prompt remoto indisponível.")
+            end
         else
             UI:Notify("Egg Track","Nenhum alvo neste servidor.")
         end
     end)
 
-    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Venha em Server Hop • 4. Ative Auto Hop por alvo.")
+    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub tenta coletar sem TP.")
     local info=text(note,"Os alvos ficam salvos enquanto o ambiente do executor continuar ativo.",9,Theme.Muted,Enum.Font.Gotham)
     info.Size=UDim2.new(1,0,0,30)
     info.TextWrapped=true
@@ -801,6 +1139,10 @@ end
 
 UI:SelectTab("Dashboard")
 refreshHighlights()
+
+if State.antiGameplayPaused then
+    startAntiGameplayPaused()
+end
 
 if Eggs then
     Eggs.ChildAdded:Connect(function(e)
@@ -814,4 +1156,4 @@ if Eggs then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.0 RICH GUI carregado")
+print("[ZYRO HUB] Ride A Pet v4.3 REMOTE COLLECT • NO TP carregado")
