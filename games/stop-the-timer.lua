@@ -77,22 +77,79 @@ local function bindButton(sideName)
     button=side and side:FindFirstChild("Button")
 end
 
+local function getLocalSide()
+    if not station then return nil end
+
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local buttons = station:FindFirstChild("Buttons")
+    if not root or not buttons then return nil end
+
+    local bestSide, bestDistance = nil, math.huge
+
+    for _, sideName in ipairs({"Player1","Player2"}) do
+        local side = buttons:FindFirstChild(sideName)
+        local btn = side and side:FindFirstChild("Button")
+        local pos = getPos(btn)
+
+        if pos then
+            local distance = (root.Position - pos).Magnitude
+            if distance < bestDistance then
+                bestDistance = distance
+                bestSide = sideName
+            end
+        end
+    end
+
+    return bestSide
+end
+
 local function detectActiveTimer()
     if not station then return end
-    for _,sideName in ipairs({"Player1","Player2"}) do
-        local txt=getTimer(station,sideName)
-        local value=txt and parseTime(txt.Text)
+
+    -- Não assume mais Player1. Descobre de qual lado o jogador local está
+    -- pela posição física do botão da mesa.
+    local localSide = getLocalSide()
+
+    if localSide then
+        local txt = getTimer(station, localSide)
+        local value = txt and parseTime(txt.Text)
+
         if value then
-            local prev=lastValues[sideName]
+            local prev = lastValues[localSide]
+
             if prev and value < prev and value <= 0.05 then
-                pressedThisRound=false
+                pressedThisRound = false
             end
+
+            activeTimer = txt
+            activeSide = localSide
+            bindButton(localSide)
+            lastValues[localSide] = value
+            return
+        end
+    end
+
+    -- Fallback: se a posição ainda não estiver disponível, usa o contador
+    -- que realmente estiver aumentando.
+    for _, sideName in ipairs({"Player1","Player2"}) do
+        local txt = getTimer(station, sideName)
+        local value = txt and parseTime(txt.Text)
+
+        if value then
+            local prev = lastValues[sideName]
+
+            if prev and value < prev and value <= 0.05 then
+                pressedThisRound = false
+            end
+
             if prev and value > prev then
-                activeTimer=txt
-                activeSide=sideName
+                activeTimer = txt
+                activeSide = sideName
                 bindButton(sideName)
             end
-            lastValues[sideName]=value
+
+            lastValues[sideName] = value
         end
     end
 end
@@ -146,10 +203,10 @@ UIS.InputBegan:Connect(function(input, processed)
         -- Se a rodada ainda não revelou o lado ativo, tenta localizar
         -- um botão disponível para permitir o teste/manual.
         if not button then
-            for _, sideName in ipairs({"Player1", "Player2"}) do
+            local sideName = getLocalSide()
+            if sideName then
                 activeSide = sideName
                 bindButton(sideName)
-                if button then break end
             end
         end
 
@@ -157,8 +214,26 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
--- Tabs reais: cada grupo fica em uma página separada no menu lateral.
-UI:Tab("Auto Press")
+UI:Section("Controles")
+UI:Button("SPACE = Press manual","Jogando legit, basta apertar ESPAÇO em vez de clicar no botão.",function()
+    UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
+end)
+
+UI:Section("Precisão / Legit")
+
+UI:Slider(
+    "Ajuste do Press",
+    "0 ms = cravar • positivo = antes • negativo = depois",
+    -20,
+    20,
+    0,
+    1,
+    function(ms)
+        PRESS_OFFSET = ms / 1000
+        print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
+    end
+)
+
 UI:Toggle("Auto Press","Lê o alvo e aperta automaticamente no tempo.",false,function(on)
     autoPress=on
     pressedThisRound=false
@@ -174,39 +249,14 @@ UI:Button("Testar botão","Testa agora o botão detectado da sua mesa.",function
         task.wait(.05)
     end
     if not button then
-        for _,sideName in ipairs({"Player1","Player2"}) do
+        local sideName=getLocalSide()
+        if sideName then
             activeSide=sideName
             bindButton(sideName)
-            if button then break end
         end
     end
     pressButton()
 end)
-
-UI:Tab("Precisão")
-UI:Slider(
-    "Ajuste do Press",
-    "0 ms = cravar • positivo = antes • negativo = depois",
-    -20,
-    20,
-    0,
-    1,
-    function(ms)
-        PRESS_OFFSET = ms / 1000
-        print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
-    end
-)
-UI:Section("Como funciona")
-UI:Button("0 ms = CRAVAR","Centro da barra. + adianta o press; - atrasa o press.",function()
-    UI:Notify("Precisão","Arraste a barra para configurar de -20 ms até +20 ms.","info")
-end)
-
-UI:Tab("Controles")
-UI:Button("SPACE = Press manual","Jogando manualmente, basta apertar ESPAÇO em vez de clicar no botão.",function()
-    UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
-end)
-
-UI:SelectTab("Auto Press")
 
 task.spawn(function()
     local lastStationCheck=0
@@ -243,4 +293,4 @@ task.spawn(function()
 end)
 
 print("[STOP TIMER] SPACE: press manual ativo")
-print("[ZYRO HUB] Stop The Timer v2.6 REAL TABS + SLIDER carregado")
+print("[ZYRO HUB] Stop The Timer v2.7 LOCAL SIDE + SLIDER carregado")
