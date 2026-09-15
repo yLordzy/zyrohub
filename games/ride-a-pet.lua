@@ -9,6 +9,7 @@ local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
+local PathfindingService = game:GetService("PathfindingService")
 
 local LP = Players.LocalPlayer
 local UI = getgenv().ZyroUI
@@ -295,68 +296,208 @@ Workspace.DescendantAdded:Connect(function(d)
     if d:IsA("ProximityPrompt") then task.defer(applyPrompt,d) end
 end)
 
-local function requestStreamAtTarget(target)
-    if not target then return end
+local function getPrompt(target)
+    if not target then return nil end
 
-    local pos = nil
-    if target:IsA("Model") then
-        pos = target:GetPivot().Position
-    elseif target:IsA("BasePart") then
-        pos = target.Position
+    if target:IsA("ProximityPrompt") and target.Enabled then
+        return target
     end
 
-    if not pos then return end
+    for _,obj in ipairs(target:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Enabled then
+            return obj
+        end
+    end
 
-    -- Carrega a região do egg SEM mover o personagem.
+    return nil
+end
+
+local function promptWorldPosition(prompt)
+    if not prompt then return nil end
+
+    local parent = prompt.Parent
+    if not parent then return nil end
+
+    if parent:IsA("Attachment") then
+        return parent.WorldPosition
+    elseif parent:IsA("BasePart") then
+        return parent.Position
+    end
+
+    local part = parent:FindFirstAncestorWhichIsA("BasePart")
+    if part then return part.Position end
+
+    return nil
+end
+
+local function targetPosition(target)
+    -- PRIORIDADE: posição REAL do ProximityPrompt.
+    -- O pivot do Model pode ficar longe do ponto de interação.
+    local prompt = getPrompt(target)
+    local promptPos = promptWorldPosition(prompt)
+    if promptPos then
+        return promptPos
+    end
+
+    if not target then return nil end
+    if target:IsA("Model") then
+        return target:GetPivot().Position
+    elseif target:IsA("BasePart") then
+        return target.Position
+    end
+    return nil
+end
+
+local function requestStreamAtTarget(target)
+    local pos = targetPosition(target)
+    if not pos then return end
     pcall(function()
         LP:RequestStreamAroundAsync(pos, 2)
     end)
 end
 
-local function interactTarget(target)
-    if not target then return false end
+local function distanceTo(target)
+    local r = root()
+    local pos = targetPosition(target)
+    if not r or not pos then return math.huge end
+    return (r.Position - pos).Magnitude
+end
 
-    -- Primeiro tenta carregar a área do egg sem TP.
+local function safeWalkTo(target)
+    local r = root()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local pos = targetPosition(target)
+    local prompt = getPrompt(target)
+
+    if not r or not hum or not pos then
+        return false, "NO_CHARACTER"
+    end
+
+    -- Fica realmente dentro da distância válida do prompt.
+    local maxDist = prompt and tonumber(prompt.MaxActivationDistance) or 10
+    local stopDistance = math.max(2.5, math.min(maxDist - 1, 6))
+
+    if (r.Position - pos).Magnitude <= stopDistance then
+        return true
+    end
+
     requestStreamAtTarget(target)
-    task.wait(.15)
 
-    local fp = (type(fireproximityprompt)=="function" and fireproximityprompt)
-        or env.fireproximityprompt
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentCanClimb = true,
+        WaypointSpacing = 3,
+    })
 
-    local fired = false
+    local ok = pcall(function()
+        path:ComputeAsync(r.Position, pos)
+    end)
 
-    -- Tenta prompts no próprio egg e em descendentes.
-    local prompts = {}
-
-    if target:IsA("ProximityPrompt") then
-        prompts[#prompts+1] = target
+    if not ok or path.Status ~= Enum.PathStatus.Success then
+        return false, "PATH_FAILED"
     end
 
-    for _,d in ipairs(target:GetDescendants()) do
-        if d:IsA("ProximityPrompt") and d.Enabled then
-            prompts[#prompts+1] = d
+    for _,waypoint in ipairs(path:GetWaypoints()) do
+        if not target.Parent then
+            return false, "TARGET_GONE"
         end
-    end
 
-    for _,prompt in ipairs(prompts) do
-        applyPrompt(prompt)
+        if distanceTo(target) <= stopDistance then
+            hum:Move(Vector3.zero)
+            return true
+        end
 
-        -- Amplia alcance apenas no cliente para executores que respeitam a distância local.
-        pcall(function()
-            prompt.MaxActivationDistance = math.max(prompt.MaxActivationDistance, 100000)
-            prompt.RequiresLineOfSight = false
-            prompt.HoldDuration = 0
+        if waypoint.Action == Enum.PathWaypointAction.Jump then
+            hum.Jump = true
+        end
+
+        hum:MoveTo(waypoint.Position)
+
+        local finished = false
+        local reached = false
+        local conn
+        conn = hum.MoveToFinished:Connect(function(okReached)
+            reached = okReached
+            finished = true
         end)
 
-        if type(fp)=="function" then
-            local ok = pcall(function()
-                fp(prompt, 0)
-            end)
-            fired = fired or ok
+        local started = os.clock()
+        while not finished and os.clock() - started < 4 do
+            if distanceTo(target) <= stopDistance then
+                reached = true
+                break
+            end
+            task.wait(.05)
+        end
+
+        if conn then conn:Disconnect() end
+
+        if not reached and distanceTo(target) > stopDistance then
+            return false, "MOVE_FAILED"
         end
     end
 
-    return fired
+    return distanceTo(target) <= stopDistance
+end
+
+local function normalPromptInteract(target)
+    local prompt = getPrompt(target)
+    if not prompt then
+        return false, "NO_PROMPT"
+    end
+
+    local pos = promptWorldPosition(prompt)
+    local r = root()
+    if not pos or not r then
+        return false, "NO_PROMPT_POSITION"
+    end
+
+    local maxDist = tonumber(prompt.MaxActivationDistance) or 10
+    local dist = (r.Position - pos).Magnitude
+
+    if dist > maxDist then
+        return false, ("TOO_FAR_%.1f"):format(dist)
+    end
+
+    -- NÃO usa fireproximityprompt aqui.
+    -- O jogo estava tocando o som local, mas o servidor rejeitava a coleta.
+    -- Em vez disso, envia a tecla E como uma interação normal.
+    pcall(function()
+        prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
+    end)
+
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(math.max(.08, tonumber(prompt.HoldDuration) or 0) + .08)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+
+    return true
+end
+
+local function safeCollect(target)
+    if not target or not target.Parent then
+        return false, "TARGET_GONE"
+    end
+
+    local walked, reason = safeWalkTo(target)
+    if not walked then
+        return false, reason
+    end
+
+    task.wait(.2)
+
+    local fired, why = normalPromptInteract(target)
+    if not fired then
+        return false, why
+    end
+
+    -- Dá tempo para o servidor confirmar antes de qualquer outra ação.
+    task.wait(.65)
+
+    return true
 end
 
 local function holdE(duration)
@@ -378,10 +519,14 @@ local function startAutoBest()
         while State.autoBest and token == autoBestToken do
             local e = findCherub()
             if e and e.Parent then
-                -- Coleta remota: não move o player e não faz o egg "voltar".
-                local worked = interactTarget(e)
+                local worked, reason = safeCollect(e)
                 if worked then
-                    UI:Notify("Auto Best Egg","Interação remota enviada para "..e.Name)
+                    UI:Notify("Auto Best Egg","Coleta segura enviada para "..e.Name)
+                else
+                    warn("[ZYRO SafeCollect] Falhou:",reason)
+                    if reason=="MOVE_FAILED" or reason=="PATH_FAILED" then
+                        UI:Notify("Auto Best Egg","Não consegui chegar andando até o egg.")
+                    end
                 end
                 task.wait(.8)
             else
@@ -593,9 +738,12 @@ local function startAutoHop()
             local found = wantedEgg()
             if found then
                 UI:Notify("Egg Track","Alvo encontrado: "..found.Name)
-                local worked = interactTarget(found)
+                local worked, reason = safeCollect(found)
                 if worked then
-                    UI:Notify("Egg Track","Tentativa de coleta remota enviada.")
+                    UI:Notify("Egg Track","Coleta segura concluída.")
+                else
+                    warn("[ZYRO EggTrack] SafeCollect falhou:",reason)
+                    UI:Notify("Egg Track","Não consegui coletar com segurança: "..tostring(reason))
                 end
                 State.autoHop = false
                 break
@@ -790,14 +938,14 @@ do
     action(quick,"TP HOME","Voltar para sua plot.",function()
         if not teleportHome() then UI:Notify("Teleport","Sua plot não foi encontrada.") end
     end)
-    action(quick,"COLETAR CHERUB","Tenta interagir com o Cherub sem mover seu personagem.",function()
+    action(quick,"COLETAR CHERUB","Vai até o prompt real do Cherub e usa E normalmente quando estiver perto.",function()
         local e=findCherub()
         if e then
-            local worked=interactTarget(e)
+            local worked, reason=safeCollect(e)
             if worked then
-                UI:Notify("Ride A Pet","Interação remota enviada para "..e.Name)
+                UI:Notify("Ride A Pet","Coleta segura enviada para "..e.Name)
             else
-                UI:Notify("Ride A Pet","Prompt remoto não ficou disponível.")
+                UI:Notify("Ride A Pet","Falhou: "..tostring(reason))
             end
         else
             UI:Notify("Ride A Pet","Nenhum Cherub encontrado.")
@@ -1078,14 +1226,14 @@ do
     Add.MouseButton1Click:Connect(addManual)
     Manual.FocusLost:Connect(function(enter) if enter then addManual() end end)
 
-    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Procura e tenta interagir com um alvo sem TP.",function()
+    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Vai até o ponto real de interação e usa E normalmente de perto.",function()
         local e=wantedEgg()
         if e then
-            local worked=interactTarget(e)
+            local worked, reason=safeCollect(e)
             if worked then
-                UI:Notify("Egg Track","Interação remota enviada para "..e.Name)
+                UI:Notify("Egg Track","Coleta segura concluída em "..e.Name)
             else
-                UI:Notify("Egg Track","Não consegui disparar o prompt remotamente.")
+                UI:Notify("Egg Track","Falhou: "..tostring(reason))
             end
         else
             UI:Notify("Egg Track","Nenhum alvo selecionado está neste servidor.")
@@ -1116,22 +1264,22 @@ do
         if v then startAutoHop() end
     end)
 
-    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, tenta interagir remotamente sem TP.",function()
+    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, vai até o prompt e interage com E de perto.",function()
         local e=wantedEgg()
         if e then
             UI:Notify("Egg Track","Encontrado: "..e.Name)
-            local worked=interactTarget(e)
+            local worked, reason=safeCollect(e)
             if worked then
-                UI:Notify("Egg Track","Interação remota enviada.")
+                UI:Notify("Egg Track","Coleta segura concluída.")
             else
-                UI:Notify("Egg Track","Prompt remoto indisponível.")
+                UI:Notify("Egg Track","Falhou: "..tostring(reason))
             end
         else
             UI:Notify("Egg Track","Nenhum alvo neste servidor.")
         end
     end)
 
-    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub tenta coletar sem TP.")
+    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub vai andando até o egg e só interage de perto.")
     local info=text(note,"Os alvos ficam salvos enquanto o ambiente do executor continuar ativo.",9,Theme.Muted,Enum.Font.Gotham)
     info.Size=UDim2.new(1,0,0,30)
     info.TextWrapped=true
@@ -1156,4 +1304,4 @@ if Eggs then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.3 REMOTE COLLECT • NO TP carregado")
+print("[ZYRO HUB] Ride A Pet v4.5 REAL PROMPT COLLECT carregado")
