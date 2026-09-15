@@ -283,14 +283,6 @@ end
 
 quick.MouseButton1Click:Connect(openChat)
 
--- "/" abre o Chat Global como no hub original.
-table.insert(connections, UIS.InputBegan:Connect(function(key, processed)
-    if processed then return end
-    if key.KeyCode == Enum.KeyCode.Slash then
-        openChat()
-    end
-end))
-
 function Chat.Open()
     openChat()
 end
@@ -307,9 +299,19 @@ function Chat.ShowNative(v)
 end
 
 setup()
+
+-- IMPORTANTE: conecta o atalho DEPOIS de setup(), porque setup() limpa
+-- os listeners de chat antigos ao reconectar.
+table.insert(connections, UIS.InputBegan:Connect(function(key, processed)
+    if processed then return end
+    if key.KeyCode == Enum.KeyCode.Slash then
+        openChat()
+    end
+end))
+
 setNativeChatVisible(false)
 addMessage(nil,"Hub iniciado. Seus dias de conta: "..tostring(LP.AccountAge),true)
 
 getgenv().ZyroChat=Chat
-print("[ZYRO HUB] Shared Chat v1.0 carregado")
+print("[ZYRO HUB] Shared Chat v1.2 carregado")
 return Chat
