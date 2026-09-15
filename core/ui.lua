@@ -2,6 +2,7 @@
 local UI = {}
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local lp = Players.LocalPlayer
 
@@ -23,7 +24,7 @@ local title=Instance.new("TextLabel",top); title.Size=UDim2.new(1,-120,1,0); tit
 title.Text="ZYRO HUB"; title.TextXAlignment=Enum.TextXAlignment.Left; title.Font=Enum.Font.GothamBold; title.TextSize=20; title.TextColor3=Color3.new(1,1,1)
 local close=Instance.new("TextButton",top); close.Size=UDim2.fromOffset(38,38); close.Position=UDim2.new(1,-50,.5,-19); close.Text="×"; close.Font=Enum.Font.GothamBold; close.TextSize=20
 close.TextColor3=Color3.fromRGB(255,90,110); close.BackgroundColor3=Color3.fromRGB(22,23,31); close.BorderSizePixel=0; Instance.new("UICorner",close).CornerRadius=UDim.new(0,10)
-close.MouseButton1Click:Connect(function() sg.Enabled=false end)
+close.MouseButton1Click:Connect(function() main.Visible=false end)
 
 local side=Instance.new("Frame",main); side.Position=UDim2.fromOffset(14,72); side.Size=UDim2.fromOffset(165,382); side.BackgroundColor3=Color3.fromRGB(13,14,20); side.BorderSizePixel=0
 Instance.new("UICorner",side).CornerRadius=UDim.new(0,14)
@@ -190,5 +191,5 @@ local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
-print("[ZYRO HUB] UI v1.5 BRAND carregada")
+print("[ZYRO HUB] UI v1.6 ZYRO BRAND carregada")
 return UI
