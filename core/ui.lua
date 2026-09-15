@@ -17,6 +17,18 @@ sg.Name="ZyroHubLoaderUI"; sg.ResetOnSpawn=false; sg.IgnoreGuiInset=true; sg.ZIn
 local main=Instance.new("Frame",sg)
 main.Size=UDim2.fromOffset(720,470); main.Position=UDim2.new(.5,-360,.5,-235); main.BackgroundColor3=Color3.fromRGB(8,9,13); main.BorderSizePixel=0
 Instance.new("UICorner",main).CornerRadius=UDim.new(0,18)
+local mainStroke=Instance.new("UIStroke",main)
+mainStroke.Color=Color3.fromRGB(139,92,246)
+mainStroke.Transparency=.68
+mainStroke.Thickness=1
+task.spawn(function()
+    while main and main.Parent do
+        local a=TweenService:Create(mainStroke,TweenInfo.new(1.8,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=.32})
+        a:Play(); a.Completed:Wait()
+        local b=TweenService:Create(mainStroke,TweenInfo.new(1.8,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Transparency=.68})
+        b:Play(); b.Completed:Wait()
+    end
+end)
 local stroke=Instance.new("UIStroke",main); stroke.Color=Color3.fromRGB(90,105,255); stroke.Thickness=1
 
 local top=Instance.new("Frame",main); top.Size=UDim2.new(1,0,0,62); top.BackgroundTransparency=1
@@ -49,8 +61,8 @@ end
 local function switchTab(tab)
     for _,t in pairs(tabs) do
         t.page.Visible=false
-        t.button.BackgroundColor3=Color3.fromRGB(18,19,27)
-        t.button.TextColor3=Color3.fromRGB(155,158,175)
+        t.button.BackgroundColor3=Color3.fromRGB(18,12,31)
+        t.button.TextColor3=Color3.fromRGB(190,180,210)
     end
     if defaultPage then defaultPage.Visible=false end
     tab.page.Visible=true; tab.button.BackgroundColor3=Color3.fromRGB(31,34,54); tab.button.TextColor3=Color3.new(1,1,1); current=tab.page
@@ -70,13 +82,13 @@ function UI:PromoteDefaultToTab(name)
     hasRealTabs=true
     local b=Instance.new("TextButton",side)
     b.Size=UDim2.new(1,0,0,42)
-    b.BackgroundColor3=Color3.fromRGB(18,19,27)
+    b.BackgroundColor3=Color3.fromRGB(18,12,31)
     b.BorderSizePixel=0
     b.Text="  "..name
     b.TextXAlignment=Enum.TextXAlignment.Left
     b.Font=Enum.Font.GothamMedium
     b.TextSize=13
-    b.TextColor3=Color3.fromRGB(155,158,175)
+    b.TextColor3=Color3.fromRGB(190,180,210)
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)
     local tab={page=defaultPage,button=b}
     tabs[name]=tab
@@ -91,8 +103,8 @@ function UI:Tab(name)
         if defaultPage then defaultPage:Destroy(); defaultPage=nil; current=nil end
     end
     local page=makePage(name)
-    local b=Instance.new("TextButton",side); b.Size=UDim2.new(1,0,0,42); b.BackgroundColor3=Color3.fromRGB(18,19,27); b.BorderSizePixel=0
-    b.Text="  "..name; b.TextXAlignment=Enum.TextXAlignment.Left; b.Font=Enum.Font.GothamMedium; b.TextSize=13; b.TextColor3=Color3.fromRGB(155,158,175)
+    local b=Instance.new("TextButton",side); b.Size=UDim2.new(1,0,0,42); b.BackgroundColor3=Color3.fromRGB(18,12,31); b.BorderSizePixel=0
+    b.Text="  "..name; b.TextXAlignment=Enum.TextXAlignment.Left; b.Font=Enum.Font.GothamMedium; b.TextSize=13; b.TextColor3=Color3.fromRGB(190,180,210)
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)
     local tab={page=page,button=b}; tabs[name]=tab; b.MouseButton1Click:Connect(function() switchTab(tab) end)
     if not current then switchTab(tab) end
@@ -104,13 +116,13 @@ function UI:GetTabPage(name) return tabs[name] and tabs[name].page or nil end
 function UI:UseTab(name) if tabs[name] then current=tabs[name].page end end
 function UI:Section(text)
     local p=ensureDefault(); local l=Instance.new("TextLabel",p); l.Size=UDim2.new(1,0,0,30); l.BackgroundTransparency=1
-    l.Text=text; l.TextXAlignment=Enum.TextXAlignment.Left; l.Font=Enum.Font.GothamBold; l.TextSize=14; l.TextColor3=Color3.fromRGB(180,190,255); return l
+    l.Text=text; l.TextXAlignment=Enum.TextXAlignment.Left; l.Font=Enum.Font.GothamBold; l.TextSize=14; l.TextColor3=Color3.fromRGB(196,181,253); return l
 end
 function UI:Button(text,desc,cb)
-    local p=ensureDefault(); local b=Instance.new("TextButton",p); b.Size=UDim2.new(1,0,0,62); b.BackgroundColor3=Color3.fromRGB(18,19,27); b.BorderSizePixel=0; b.Text=""
+    local p=ensureDefault(); local b=Instance.new("TextButton",p); b.Size=UDim2.new(1,0,0,62); b.BackgroundColor3=Color3.fromRGB(18,12,31); b.BorderSizePixel=0; b.Text=""
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,12)
     local a=Instance.new("TextLabel",b); a.BackgroundTransparency=1; a.Position=UDim2.fromOffset(14,8); a.Size=UDim2.new(1,-28,0,22); a.Text=text; a.TextXAlignment=Enum.TextXAlignment.Left; a.Font=Enum.Font.GothamMedium; a.TextSize=13; a.TextColor3=Color3.new(1,1,1)
-    local d=Instance.new("TextLabel",b); d.BackgroundTransparency=1; d.Position=UDim2.fromOffset(14,31); d.Size=UDim2.new(1,-28,0,18); d.Text=desc or ""; d.TextXAlignment=Enum.TextXAlignment.Left; d.Font=Enum.Font.Gotham; d.TextSize=10; d.TextColor3=Color3.fromRGB(120,124,140)
+    local d=Instance.new("TextLabel",b); d.BackgroundTransparency=1; d.Position=UDim2.fromOffset(14,31); d.Size=UDim2.new(1,-28,0,18); d.Text=desc or ""; d.TextXAlignment=Enum.TextXAlignment.Left; d.Font=Enum.Font.Gotham; d.TextSize=10; d.TextColor3=Color3.fromRGB(145,132,165)
     b.MouseButton1Click:Connect(function() task.spawn(cb) end); return b
 end
 function UI:Toggle(text,desc,default,cb)
@@ -118,18 +130,18 @@ function UI:Toggle(text,desc,default,cb)
     local b=self:Button(text,desc,function() state=not state; paint(); cb(state) end)
     local dot=Instance.new("Frame",b); dot.Size=UDim2.fromOffset(34,20); dot.Position=UDim2.new(1,-48,.5,-10); dot.BorderSizePixel=0; Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
     local knob=Instance.new("Frame",dot); knob.Size=UDim2.fromOffset(16,16); knob.Position=UDim2.fromOffset(2,2); knob.BorderSizePixel=0; knob.BackgroundColor3=Color3.new(1,1,1); Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
-    paint=function() dot.BackgroundColor3=state and Color3.fromRGB(82,96,255) or Color3.fromRGB(45,47,58); knob.Position=state and UDim2.fromOffset(16,2) or UDim2.fromOffset(2,2) end
+    paint=function() dot.BackgroundColor3=state and Color3.fromRGB(139,92,246) or Color3.fromRGB(47,35,68); knob.Position=state and UDim2.fromOffset(16,2) or UDim2.fromOffset(2,2) end
     paint(); return function(v) state=v; paint(); cb(state) end
 end
 function UI:Slider(text,desc,minValue,maxValue,defaultValue,step,cb)
     local p=ensureDefault(); minValue=tonumber(minValue) or 0; maxValue=tonumber(maxValue) or 100; step=tonumber(step) or 1
     local value=math.clamp(tonumber(defaultValue) or minValue,minValue,maxValue)
-    local holder=Instance.new("Frame",p); holder.Size=UDim2.new(1,0,0,88); holder.BackgroundColor3=Color3.fromRGB(18,19,27); holder.BorderSizePixel=0; Instance.new("UICorner",holder).CornerRadius=UDim.new(0,12)
+    local holder=Instance.new("Frame",p); holder.Size=UDim2.new(1,0,0,88); holder.BackgroundColor3=Color3.fromRGB(18,12,31); holder.BorderSizePixel=0; Instance.new("UICorner",holder).CornerRadius=UDim.new(0,12)
     local name=Instance.new("TextLabel",holder); name.BackgroundTransparency=1; name.Position=UDim2.fromOffset(14,8); name.Size=UDim2.new(1,-110,0,20); name.Text=text; name.TextXAlignment=Enum.TextXAlignment.Left; name.Font=Enum.Font.GothamMedium; name.TextSize=13; name.TextColor3=Color3.new(1,1,1)
-    local val=Instance.new("TextLabel",holder); val.BackgroundTransparency=1; val.Position=UDim2.new(1,-94,0,8); val.Size=UDim2.fromOffset(80,20); val.TextXAlignment=Enum.TextXAlignment.Right; val.Font=Enum.Font.GothamBold; val.TextSize=12; val.TextColor3=Color3.fromRGB(180,190,255)
-    local d=Instance.new("TextLabel",holder); d.BackgroundTransparency=1; d.Position=UDim2.fromOffset(14,29); d.Size=UDim2.new(1,-28,0,16); d.Text=desc or ""; d.TextXAlignment=Enum.TextXAlignment.Left; d.Font=Enum.Font.Gotham; d.TextSize=10; d.TextColor3=Color3.fromRGB(120,124,140)
-    local bar=Instance.new("Frame",holder); bar.Active=true; bar.Position=UDim2.fromOffset(14,60); bar.Size=UDim2.new(1,-28,0,8); bar.BackgroundColor3=Color3.fromRGB(45,47,58); bar.BorderSizePixel=0; Instance.new("UICorner",bar).CornerRadius=UDim.new(1,0)
-    local fill=Instance.new("Frame",bar); fill.BackgroundColor3=Color3.fromRGB(82,96,255); fill.BorderSizePixel=0; Instance.new("UICorner",fill).CornerRadius=UDim.new(1,0)
+    local val=Instance.new("TextLabel",holder); val.BackgroundTransparency=1; val.Position=UDim2.new(1,-94,0,8); val.Size=UDim2.fromOffset(80,20); val.TextXAlignment=Enum.TextXAlignment.Right; val.Font=Enum.Font.GothamBold; val.TextSize=12; val.TextColor3=Color3.fromRGB(196,181,253)
+    local d=Instance.new("TextLabel",holder); d.BackgroundTransparency=1; d.Position=UDim2.fromOffset(14,29); d.Size=UDim2.new(1,-28,0,16); d.Text=desc or ""; d.TextXAlignment=Enum.TextXAlignment.Left; d.Font=Enum.Font.Gotham; d.TextSize=10; d.TextColor3=Color3.fromRGB(145,132,165)
+    local bar=Instance.new("Frame",holder); bar.Active=true; bar.Position=UDim2.fromOffset(14,60); bar.Size=UDim2.new(1,-28,0,8); bar.BackgroundColor3=Color3.fromRGB(47,35,68); bar.BorderSizePixel=0; Instance.new("UICorner",bar).CornerRadius=UDim.new(1,0)
+    local fill=Instance.new("Frame",bar); fill.BackgroundColor3=Color3.fromRGB(139,92,246); fill.BorderSizePixel=0; Instance.new("UICorner",fill).CornerRadius=UDim.new(1,0)
     local knob=Instance.new("Frame",bar); knob.Active=true; knob.AnchorPoint=Vector2.new(.5,.5); knob.Size=UDim2.fromOffset(18,18); knob.BackgroundColor3=Color3.new(1,1,1); knob.BorderSizePixel=0; Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
     local dragging=false
     local function round(v) return math.clamp(math.floor(((v-minValue)/step)+.5)*step+minValue,minValue,maxValue) end
@@ -166,16 +178,31 @@ brand.Name="ZyroHubBrand"
 brand.AnchorPoint=Vector2.new(.5,0)
 brand.Position=UDim2.new(.5,0,0,4)
 brand.Size=UDim2.fromOffset(150,38)
-brand.BackgroundColor3=Color3.fromRGB(14,15,22)
+brand.BackgroundColor3=Color3.fromRGB(10,7,18)
 brand.BorderSizePixel=0
 brand.AutoButtonColor=false
 brand.Text=""
 Instance.new("UICorner",brand).CornerRadius=UDim.new(0,11)
 
 local bs=Instance.new("UIStroke",brand)
-bs.Color=Color3.fromRGB(82,96,255)
+bs.Color=Color3.fromRGB(139,92,246)
 bs.Transparency=.35
 bs.Thickness=1
+local brandGlow=Instance.new("UIGradient",brand)
+brandGlow.Rotation=0
+brandGlow.Color=ColorSequence.new({
+    ColorSequenceKeypoint.new(0,Color3.fromRGB(24,14,44)),
+    ColorSequenceKeypoint.new(.45,Color3.fromRGB(48,25,82)),
+    ColorSequenceKeypoint.new(1,Color3.fromRGB(18,10,34))
+})
+task.spawn(function()
+    local dir=1
+    while brand and brand.Parent do
+        local goal=dir==1 and 180 or 0
+        local tw=TweenService:Create(brandGlow,TweenInfo.new(3.2,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{Rotation=goal})
+        tw:Play(); tw.Completed:Wait(); dir=-dir
+    end
+end)
 
 local home=Instance.new("TextLabel",brand)
 home.BackgroundTransparency=1
@@ -184,32 +211,36 @@ home.Size=UDim2.fromOffset(26,38)
 home.Text="⌂"
 home.Font=Enum.Font.GothamBold
 home.TextSize=16
-home.TextColor3=Color3.fromRGB(180,190,255)
+home.TextColor3=Color3.fromRGB(196,181,253)
 
 local logo=Instance.new("TextLabel",brand)
 logo.BackgroundTransparency=1
 logo.Position=UDim2.fromOffset(39,0)
 logo.Size=UDim2.new(1,-47,1,0)
-logo.Text="ZYRO HUB"
+logo.Text="ZYRO  HUB"
 logo.Font=Enum.Font.GothamBold
 logo.TextSize=13
 logo.TextXAlignment=Enum.TextXAlignment.Left
-logo.TextColor3=Color3.new(1,1,1)
+logo.TextColor3=Color3.fromRGB(245,240,255)
 
 brand.MouseButton1Click:Connect(function()
+    local scale=brand:FindFirstChildOfClass("UIScale") or Instance.new("UIScale",brand)
+    local down=TweenService:Create(scale,TweenInfo.new(.08,Enum.EasingStyle.Quad),{Scale=.94})
+    down:Play(); down.Completed:Wait()
     main.Visible=not main.Visible
+    TweenService:Create(scale,TweenInfo.new(.16,Enum.EasingStyle.Back),{Scale=1}):Play()
 end)
 
 brand.MouseEnter:Connect(function()
-    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(22,23,32)}):Play()
+    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(25,17,42)}):Play()
 end)
 brand.MouseLeave:Connect(function()
-    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(14,15,22)}):Play()
+    TweenService:Create(brand,TweenInfo.new(.12),{BackgroundColor3=Color3.fromRGB(10,7,18)}):Play()
 end)
 
 local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
-print("[ZYRO HUB] UI v1.7 TAB PRESERVE carregada")
+print("[ZYRO HUB] UI v2.0 NEBULA carregada")
 return UI
