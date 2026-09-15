@@ -164,39 +164,18 @@ end)
 
 UI:Section("Precisão / Legit")
 
-local function setOffset(v, label)
-    PRESS_OFFSET = v
-    UI:Notify("Precisão", label .. (" (%+.3fs)"):format(PRESS_OFFSET), "info")
-    print(("[STOP TIMER] Precisão: %s | offset=%+.3fs"):format(label, PRESS_OFFSET))
-end
-
-UI:Button("CRAVAR • 0 ms","Sem antecipação: dispara quando a leitura alcançar exatamente o alvo.",function()
-    setOffset(0.000, "CRAVAR")
-end)
-
-UI:Button("LEGIT • 1 ms antes","Dispara 0.001s antes do alvo.",function()
-    setOffset(0.001, "1 ms antes")
-end)
-
-UI:Button("LEGIT • 2 ms antes","Dispara 0.002s antes do alvo.",function()
-    setOffset(0.002, "2 ms antes")
-end)
-
-UI:Button("LEGIT • 5 ms antes","Dispara 0.005s antes do alvo.",function()
-    setOffset(0.005, "5 ms antes")
-end)
-
-UI:Button("LEGIT • 10 ms antes","Dispara 0.010s antes do alvo.",function()
-    setOffset(0.010, "10 ms antes")
-end)
-
-UI:Button("1 ms depois","Dispara 0.001s depois do alvo.",function()
-    setOffset(-0.001, "1 ms depois")
-end)
-
-UI:Button("2 ms depois","Dispara 0.002s depois do alvo.",function()
-    setOffset(-0.002, "2 ms depois")
-end)
+UI:Slider(
+    "Ajuste do Press",
+    "0 ms = cravar • positivo = antes • negativo = depois",
+    -20,
+    20,
+    0,
+    1,
+    function(ms)
+        PRESS_OFFSET = ms / 1000
+        print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
+    end
+)
 
 UI:Toggle("Auto Press","Lê o alvo e aperta automaticamente no tempo.",false,function(on)
     autoPress=on
@@ -258,4 +237,4 @@ task.spawn(function()
 end)
 
 print("[STOP TIMER] SPACE: press manual ativo")
-print("[ZYRO HUB] Stop The Timer v2.4 PRECISION carregado")
+print("[ZYRO HUB] Stop The Timer v2.5 SLIDER carregado")
