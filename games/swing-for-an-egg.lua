@@ -93,7 +93,7 @@ end
 
 UI:Section("Teleports")
 
-UI:Button("TP ÚLTIMA ZONA", function()
+UI:Button("TP ÚLTIMA ZONA", "Detecta automaticamente a maior ZoneN e vai até um EggNest.", function()
     local zone, number = latestZone()
     if not zone then
         UI:Notify("Swing For An Egg", "Não encontrei workspace.Eggs.ZoneN.")
@@ -111,7 +111,7 @@ UI:Button("TP ÚLTIMA ZONA", function()
     end
 end)
 
-UI:Button("TP MINHA BASE", function()
+UI:Button("TP MINHA BASE", "Volta para o Spawn da sua Plot automaticamente.", function()
     local cf, plot = homeDestination()
     if not cf then
         UI:Notify("Swing For An Egg", "Não encontrei Plot_"..LP.Name..".")
@@ -125,7 +125,7 @@ end)
 
 UI:Section("Detecção")
 
-UI:Button("VERIFICAR ÚLTIMA ZONA", function()
+UI:Button("VERIFICAR ÚLTIMA ZONA", "Mostra qual é a maior zona disponível no momento.", function()
     local zone, number = latestZone()
     if zone then
         UI:Notify("Swing For An Egg", "Última zona detectada: Zone"..tostring(number))
@@ -136,4 +136,4 @@ end)
 
 UI:SelectTab("Teleports")
 
-print("[ZYRO HUB] Swing For An Egg v1.0 carregado")
+print("[ZYRO HUB] Swing For An Egg v1.1 UI FIX carregado")
