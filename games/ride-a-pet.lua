@@ -39,7 +39,7 @@ env.ZyroRideState = env.ZyroRideState or {
     autoBest = false,
     autoHop = false,
     antiGameplayPaused = true,
-    returnFlightTime = 1.65,
+    returnFlightTime = 4.00,
 }
 
 local State = env.ZyroRideState
@@ -387,6 +387,30 @@ local function teleportHome()
     return false
 end
 
+local function getHomePlotCFrame()
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+
+    for _,plot in ipairs(plots:GetChildren()) do
+        local d = plot:FindFirstChild("Data")
+        local o = d and d:FindFirstChild("Owner")
+
+        if o and (
+            (o:IsA("StringValue") and o.Value == LP.Name)
+            or (o:IsA("ObjectValue") and o.Value == LP)
+            or tostring(o.Value) == LP.Name
+        ) then
+            if plot:IsA("Model") then
+                return plot:GetPivot() * CFrame.new(0,3,0)
+            elseif plot:IsA("BasePart") then
+                return plot.CFrame * CFrame.new(0,3,0)
+            end
+        end
+    end
+
+    return nil
+end
+
 local function normalize(name)
     return tostring(name or "")
         :lower()
@@ -724,9 +748,8 @@ local function safeCollect(target)
         return false, "NO_CHARACTER"
     end
 
-    local returnCF = r.CFrame
-
-    -- 1) TP rápido PARA o egg.
+    -- Não voltamos mais para a posição anterior.
+    -- A volta agora usa a mesma lógica do TP HOME e procura a sua própria plot.
     local teleported = teleportNearTarget(target)
     if not teleported then
         return false, "TP_FAILED"
@@ -740,7 +763,12 @@ local function safeCollect(target)
     local fired, why = normalPromptInteract(target)
     if not fired then
         -- Mesmo se falhar, volta voando para onde estava.
-        flyToCFrame(returnCF, math.max(0.5, tonumber(State.returnFlightTime) or 1.65))
+        local homeCF = getHomePlotCFrame()
+        if homeCF then
+            flyToCFrame(homeCF, math.max(0.5, tonumber(State.returnFlightTime) or 4.0))
+        else
+            teleportHome()
+        end
         return false, why
     end
 
@@ -748,7 +776,12 @@ local function safeCollect(target)
     task.wait(1.10)
 
     -- 5) Volta VOANDO, não por teleport instantâneo.
-    flyToCFrame(returnCF, math.max(0.5, tonumber(State.returnFlightTime) or 1.65))
+    local homeCF = getHomePlotCFrame()
+    if homeCF then
+        flyToCFrame(homeCF, math.max(0.5, tonumber(State.returnFlightTime) or 4.0))
+    else
+        teleportHome()
+    end
 
     return true
 end
@@ -1206,10 +1239,10 @@ do
     slider(
         automation,
         "Velocidade da volta",
-        "Tempo do voo de retorno. Maior = mais devagar/seguro.",
+        "Tempo do voo de volta para sua BASE. Maior = mais devagar/seguro.",
         0.60,
         4.00,
-        tonumber(State.returnFlightTime) or 1.65,
+        tonumber(State.returnFlightTime) or 4.00,
         0.05,
         "s",
         function(v)
@@ -1640,4 +1673,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.9 RETURN SPEED SLIDER carregado")
+print("[ZYRO HUB] Ride A Pet v5.0 HOME RETURN carregado")
