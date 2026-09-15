@@ -751,39 +751,51 @@ local function safeCollect(target)
         return false, "NO_CHARACTER"
     end
 
-    -- Não voltamos mais para a posição anterior.
-    -- A volta agora usa a mesma lógica do TP HOME e procura a sua própria plot.
-    local teleported = teleportNearTarget(target)
-    if not teleported then
-        return false, "TP_FAILED"
+    local homeCF = getHomePlotCFrame()
+    if not homeCF then
+        return false, "HOME_NOT_FOUND"
     end
 
-    -- 2) Espera o cliente/servidor reconhecer a nova posição.
-    requestStreamAtTarget(target)
-    task.wait(.22)
+    local pos = targetPosition(target)
+    if not pos then
+        return false, "NO_TARGET_POSITION"
+    end
 
-    -- 3) Usa o prompt normalmente, já estando perto.
+    local flightTime = math.clamp(
+        tonumber(State.returnFlightTime) or 5.00,
+        5.00,
+        10.00
+    )
+
+    -- Destino alguns studs ao lado/acima do ponto de interação.
+    local eggCF = CFrame.new(pos + Vector3.new(0, 2.5, 4), pos)
+
+    -- 1) Vai VOANDO até o egg. Nada de TP instantâneo.
+    requestStreamAtTarget(target)
+
+    local flewIn = flyToCFrame(eggCF, flightTime)
+    if not flewIn then
+        return false, "FLY_IN_FAILED"
+    end
+
+    -- Dá tempo para o servidor reconhecer que o player realmente chegou.
+    task.wait(0.85)
+
+    -- 2) Interage normalmente já estando perto.
     local fired, why = normalPromptInteract(target)
     if not fired then
-        -- Mesmo se falhar, volta voando para onde estava.
-        local homeCF = getHomePlotCFrame()
-        if homeCF then
-            flyToCFrame(homeCF, math.max(0.5, tonumber(State.returnFlightTime) or 4.0))
-        else
-            teleportHome()
-        end
+        -- Mesmo em falha, volta voando para a base.
+        flyToCFrame(homeCF, flightTime)
         return false, why
     end
 
-    -- 4) Dá uma pequena janela para o servidor confirmar a coleta.
-    task.wait(1.10)
+    -- 3) Janela de confirmação da coleta antes de sair.
+    task.wait(1.50)
 
-    -- 5) Volta VOANDO, não por teleport instantâneo.
-    local homeCF = getHomePlotCFrame()
-    if homeCF then
-        flyToCFrame(homeCF, math.max(0.5, tonumber(State.returnFlightTime) or 4.0))
-    else
-        teleportHome()
+    -- 4) Volta VOANDO para a própria base.
+    local flewHome = flyToCFrame(homeCF, flightTime)
+    if not flewHome then
+        return false, "FLY_HOME_FAILED"
     end
 
     return true
@@ -1241,8 +1253,8 @@ do
     end)
     slider(
         automation,
-        "Velocidade da volta • 5s ↔ 10s",
-        "Mínimo 5.0s • Máximo 10.0s • maior = volta mais lenta.",
+        "Velocidade do voo • 5s ↔ 10s",
+        "Tempo para IR e VOLTAR voando. Mínimo 5s • Máximo 10s.",
         5.00,
         10.00,
         math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00),
@@ -1263,7 +1275,7 @@ do
     action(quick,"TP HOME","Voltar para sua plot.",function()
         if not teleportHome() then UI:Notify("Teleport","Sua plot não foi encontrada.") end
     end)
-    action(quick,"COLETAR CHERUB","Dá TP perto do Cherub, espera confirmar a coleta e volta voando mais devagar.",function()
+    action(quick,"COLETAR CHERUB","Vai VOANDO até o Cherub, coleta de perto e volta VOANDO para sua base.",function()
         local e=findCherub()
         if e then
             local worked, reason=safeCollect(e)
@@ -1580,7 +1592,7 @@ do
     Add.MouseButton1Click:Connect(addManual)
     Manual.FocusLost:Connect(function(enter) if enter then addManual() end end)
 
-    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Dá TP perto do alvo, espera confirmar e volta voando mais devagar.",function()
+    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Vai VOANDO até o alvo, coleta de perto e volta VOANDO para sua base.",function()
         local e=wantedEgg()
         if e then
             local worked, reason=safeCollect(e)
@@ -1627,7 +1639,7 @@ do
         if v then startAutoHop() end
     end)
 
-    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, coleta, espera confirmar e volta voando devagar.",function()
+    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, vai VOANDO até ele, coleta e volta VOANDO.",function()
         local e=wantedEgg()
         if e then
             UI:Notify("Egg Track","Encontrado: "..e.Name)
@@ -1642,7 +1654,7 @@ do
         end
     end)
 
-    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub dá TP perto do egg, espera a coleta confirmar e só então volta voando.")
+    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub vai VOANDO até o egg, coleta de perto e volta VOANDO para sua base.")
     local info=text(note,"Os alvos ficam salvos enquanto o ambiente do executor continuar ativo.",9,Theme.Muted,Enum.Font.Gotham)
     info.Size=UDim2.new(1,0,0,30)
     info.TextWrapped=true
@@ -1676,4 +1688,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.3 FORCE RANGE 5-10S carregado")
+print("[ZYRO HUB] Ride A Pet v5.4 FLY-IN + FLY-OUT carregado")
