@@ -65,6 +65,26 @@ function UI:Clear()
     for _,c in ipairs(side:GetChildren()) do if not c:IsA("UIListLayout") and not c:IsA("UIPadding") then c:Destroy() end end
     tabs={}; current=nil; defaultPage=nil; hasRealTabs=false
 end
+function UI:PromoteDefaultToTab(name)
+    if hasRealTabs or not defaultPage then return false end
+    hasRealTabs=true
+    local b=Instance.new("TextButton",side)
+    b.Size=UDim2.new(1,0,0,42)
+    b.BackgroundColor3=Color3.fromRGB(18,19,27)
+    b.BorderSizePixel=0
+    b.Text="  "..name
+    b.TextXAlignment=Enum.TextXAlignment.Left
+    b.Font=Enum.Font.GothamMedium
+    b.TextSize=13
+    b.TextColor3=Color3.fromRGB(155,158,175)
+    Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)
+    local tab={page=defaultPage,button=b}
+    tabs[name]=tab
+    b.MouseButton1Click:Connect(function() switchTab(tab) end)
+    defaultPage=nil
+    switchTab(tab)
+    return true
+end
 function UI:Tab(name)
     if not hasRealTabs then
         hasRealTabs=true
@@ -191,5 +211,5 @@ local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
-print("[ZYRO HUB] UI v1.6 ZYRO BRAND carregada")
+print("[ZYRO HUB] UI v1.7 TAB PRESERVE carregada")
 return UI
