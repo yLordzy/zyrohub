@@ -44,6 +44,9 @@ env.ZyroRideState = env.ZyroRideState or {
 
 local State = env.ZyroRideState
 
+-- Garante que configs antigas (ex.: 4.00s) não escapem do novo limite.
+State.returnFlightTime = math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00)
+
 -- =========================================================
 -- EGG TRACK • PERSISTÊNCIA ENTRE SERVER HOPS
 -- =========================================================
@@ -1238,15 +1241,15 @@ do
     end)
     slider(
         automation,
-        "Velocidade da volta",
-        "Tempo do voo de volta para sua BASE. Ajuste entre 5 e 10 segundos.",
+        "Velocidade da volta • 5s ↔ 10s",
+        "Mínimo 5.0s • Máximo 10.0s • maior = volta mais lenta.",
         5.00,
         10.00,
         math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00),
         0.10,
         "s",
         function(v)
-            State.returnFlightTime = v
+            State.returnFlightTime = math.clamp(tonumber(v) or 5.00, 5.00, 10.00)
         end
     )
 
@@ -1673,4 +1676,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.2 RETURN RANGE 5-10S carregado")
+print("[ZYRO HUB] Ride A Pet v5.3 FORCE RANGE 5-10S carregado")
