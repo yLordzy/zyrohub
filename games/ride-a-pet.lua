@@ -45,8 +45,11 @@ env.ZyroRideState = env.ZyroRideState or {
 
 local State = env.ZyroRideState
 
--- Garante que configs antigas (ex.: 4.00s) não escapem do novo limite.
+-- Garante campos novos mesmo quando ZyroRideState veio de uma versão antiga.
+State.travelMode = (State.travelMode == "teleport") and "teleport" or "guided"
 State.returnFlightTime = math.clamp(tonumber(State.returnFlightTime) or 13.00, 5.00, 15.00)
+
+-- Garante que configs antigas (ex.: 4.00s) não escapem do novo limite.
 
 -- =========================================================
 -- EGG TRACK • PERSISTÊNCIA ENTRE SERVER HOPS
@@ -773,46 +776,72 @@ end
 
 local function flyToCFrame(destinationCFrame, duration)
     local r = root()
-    if not r or not destinationCFrame then return false end
+    if not r or not destinationCFrame then
+        return false
+    end
 
-    duration = duration or 0.85
+    duration = math.clamp(tonumber(duration) or 13.00, 5.00, 15.00)
 
     local startCF = r.CFrame
     local startPos = startCF.Position
     local endPos = destinationCFrame.Position
 
-    -- Faz um arco simples: sobe, cruza e desce.
-    local apexY = math.max(startPos.Y, endPos.Y) + 24
-    local started = os.clock()
+    -- Arco com duração REAL:
+    -- 20% sobe, 60% cruza, 20% desce.
+    local apexY = math.max(startPos.Y, endPos.Y) + 26
+    local upCF = CFrame.new(Vector3.new(startPos.X, apexY, startPos.Z)) * (startCF - startPos)
+    local acrossCF = CFrame.new(Vector3.new(endPos.X, apexY, endPos.Z)) * (startCF - startPos)
 
-    while r.Parent and os.clock() - started < duration do
-        local a = math.clamp((os.clock() - started) / duration, 0, 1)
+    local function doTween(goalCF, seconds)
+        local rr = root()
+        if not rr then return false end
 
-        local pos
-        if a < 0.25 then
-            local t = a / 0.25
-            pos = startPos:Lerp(Vector3.new(startPos.X, apexY, startPos.Z), t)
-        elseif a < 0.75 then
-            local t = (a - 0.25) / 0.50
-            pos = Vector3.new(startPos.X, apexY, startPos.Z):Lerp(
-                Vector3.new(endPos.X, apexY, endPos.Z),
-                t
-            )
-        else
-            local t = (a - 0.75) / 0.25
-            pos = Vector3.new(endPos.X, apexY, endPos.Z):Lerp(endPos, t)
+        local tween = TweenService:Create(
+            rr,
+            TweenInfo.new(
+                math.max(0.05, seconds),
+                Enum.EasingStyle.Linear,
+                Enum.EasingDirection.InOut
+            ),
+            {CFrame = goalCF}
+        )
+
+        tween:Play()
+
+        local finished = false
+        local conn
+        conn = tween.Completed:Connect(function()
+            finished = true
+        end)
+
+        local started = os.clock()
+        while not finished and os.clock() - started < seconds + 1.0 do
+            if not rr.Parent then
+                if conn then conn:Disconnect() end
+                pcall(function() tween:Cancel() end)
+                return false
+            end
+            RunService.Heartbeat:Wait()
         end
 
-        r.CFrame = CFrame.new(pos) * (startCF - startCF.Position)
-        RunService.Heartbeat:Wait()
-    end
-
-    if r and r.Parent then
-        r.CFrame = destinationCFrame
+        if conn then conn:Disconnect() end
         return true
     end
 
-    return false
+    local tUp = duration * 0.20
+    local tAcross = duration * 0.60
+    local tDown = duration * 0.20
+
+    if not doTween(upCF, tUp) then return false end
+    if not doTween(acrossCF, tAcross) then return false end
+    if not doTween(destinationCFrame, tDown) then return false end
+
+    local rr = root()
+    if rr then
+        rr.CFrame = destinationCFrame
+    end
+
+    return true
 end
 
 local function teleportNearTarget(target)
@@ -1356,8 +1385,8 @@ do
     end)
     modeSelector(
         automation,
-        "Modo de deslocamento",
-        "Escolha como o hub vai até o egg e volta para a base.",
+        "Como ir até o Egg?",
+        "TELEPORTE = instantâneo • TELEGUIADO = voo com tempo real.",
         State.travelMode,
         function(mode)
             State.travelMode = mode
@@ -1366,8 +1395,8 @@ do
 
     slider(
         automation,
-        "Velocidade do voo • 5s ↔ 15s",
-        "Usado apenas no modo TELEGUIADO. Mínimo 5s • Máximo 15s. Padrão: 13s.",
+        "Tempo REAL do voo • 5s ↔ 15s",
+        "Cada trajeto demora exatamente esse tempo. Padrão 13s.",
         5.00,
         15.00,
         math.clamp(tonumber(State.returnFlightTime) or 13.00, 5.00, 15.00),
@@ -1801,4 +1830,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.6 GUIDED 13S carregado")
+print("[ZYRO HUB] Ride A Pet v5.7 REAL FLIGHT 5-15S carregado")
