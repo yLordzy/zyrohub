@@ -82,6 +82,118 @@ function UI:Toggle(text, desc, default, cb)
     end
     paint(); return function(v) state=v; paint(); cb(state) end
 end
+
+function UI:Slider(text, desc, minValue, maxValue, defaultValue, step, cb)
+    minValue = tonumber(minValue) or 0
+    maxValue = tonumber(maxValue) or 100
+    step = tonumber(step) or 1
+    local value = math.clamp(tonumber(defaultValue) or minValue, minValue, maxValue)
+
+    local holder=Instance.new("Frame",content)
+    holder.Size=UDim2.new(1,0,0,82)
+    holder.BackgroundColor3=Color3.fromRGB(18,19,27)
+    holder.BorderSizePixel=0
+    Instance.new("UICorner",holder).CornerRadius=UDim.new(0,12)
+
+    local name=Instance.new("TextLabel",holder)
+    name.BackgroundTransparency=1
+    name.Position=UDim2.fromOffset(14,8)
+    name.Size=UDim2.new(1,-100,0,20)
+    name.Text=text
+    name.TextXAlignment=Enum.TextXAlignment.Left
+    name.Font=Enum.Font.GothamMedium
+    name.TextSize=13
+    name.TextColor3=Color3.new(1,1,1)
+
+    local val=Instance.new("TextLabel",holder)
+    val.BackgroundTransparency=1
+    val.Position=UDim2.new(1,-88,0,8)
+    val.Size=UDim2.fromOffset(74,20)
+    val.TextXAlignment=Enum.TextXAlignment.Right
+    val.Font=Enum.Font.GothamBold
+    val.TextSize=12
+    val.TextColor3=Color3.fromRGB(180,190,255)
+
+    local d=Instance.new("TextLabel",holder)
+    d.BackgroundTransparency=1
+    d.Position=UDim2.fromOffset(14,29)
+    d.Size=UDim2.new(1,-28,0,16)
+    d.Text=desc or ""
+    d.TextXAlignment=Enum.TextXAlignment.Left
+    d.Font=Enum.Font.Gotham
+    d.TextSize=10
+    d.TextColor3=Color3.fromRGB(120,124,140)
+
+    local bar=Instance.new("Frame",holder)
+    bar.Position=UDim2.fromOffset(14,57)
+    bar.Size=UDim2.new(1,-28,0,8)
+    bar.BackgroundColor3=Color3.fromRGB(45,47,58)
+    bar.BorderSizePixel=0
+    Instance.new("UICorner",bar).CornerRadius=UDim.new(1,0)
+
+    local fill=Instance.new("Frame",bar)
+    fill.BackgroundColor3=Color3.fromRGB(82,96,255)
+    fill.BorderSizePixel=0
+    Instance.new("UICorner",fill).CornerRadius=UDim.new(1,0)
+
+    local knob=Instance.new("Frame",bar)
+    knob.AnchorPoint=Vector2.new(.5,.5)
+    knob.Size=UDim2.fromOffset(18,18)
+    knob.BackgroundColor3=Color3.new(1,1,1)
+    knob.BorderSizePixel=0
+    Instance.new("UICorner",knob).CornerRadius=UDim.new(1,0)
+
+    local dragging=false
+
+    local function roundToStep(v)
+        local n = math.floor(((v-minValue)/step)+0.5)*step + minValue
+        return math.clamp(n,minValue,maxValue)
+    end
+
+    local function redraw(call)
+        local alpha=(value-minValue)/(maxValue-minValue)
+        fill.Size=UDim2.new(alpha,0,1,0)
+        knob.Position=UDim2.new(alpha,0,.5,0)
+        val.Text=("%+.0f ms"):format(value)
+        if call and cb then cb(value) end
+    end
+
+    local function setFromX(x)
+        local alpha=math.clamp((x-bar.AbsolutePosition.X)/math.max(1,bar.AbsoluteSize.X),0,1)
+        value=roundToStep(minValue+(maxValue-minValue)*alpha)
+        redraw(true)
+    end
+
+    bar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            dragging=true
+            setFromX(i.Position.X)
+        end
+    end)
+    knob.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            dragging=true
+            setFromX(i.Position.X)
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+            setFromX(i.Position.X)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            dragging=false
+        end
+    end)
+
+    redraw(false)
+    return function(v)
+        value=roundToStep(tonumber(v) or value)
+        redraw(true)
+    end
+end
+
 function UI:Notify(t,m,k)
     print(("[ZyroHub] %s: %s"):format(tostring(t),tostring(m)))
 end
