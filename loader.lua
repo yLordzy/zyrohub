@@ -1,11 +1,11 @@
--- ZYRO HUB LOADER v1.4 • GAME FIRST, SHARED CHAT LAST
+-- ZYRO HUB LOADER v1.5 • GAME FIRST, SHARED CHAT LAST
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local BASE="https://raw.githubusercontent.com/yLordzy/zyrohub/refs/heads/main/"
 local Players=game:GetService("Players")
 local HttpService=game:GetService("HttpService")
 
-print("[ZYRO HUB LOADER v1.4] STARTING...")
+print("[ZYRO HUB LOADER v1.5] STARTING...")
 
 local function fetch(path)
     local sep=path:find("?",1,true) and "&" or "?"
@@ -31,9 +31,9 @@ local UI=fetch("core/ui.lua")
 getgenv().ZyroUI=UI
 
 local routes={
-    [124216119978534]="games/ride-a-pet.lua",
-    [122245938604556]="games/tongue-escape.lua",
-    [139988436996662]="games/stop-the-timer.lua",
+    [124216119978534]={module="games/ride-a-pet.lua", defaultTab="Principal"},
+    [122245938604556]={module="games/tongue-escape.lua", defaultTab="Farm"},
+    [139988436996662]={module="games/stop-the-timer.lua", defaultTab="Auto Press"},
 }
 
 local function looksLikeStopTimer()
@@ -43,28 +43,28 @@ local function looksLikeStopTimer()
     return g and g:FindFirstChild("SecondsToSet",true)~=nil
 end
 
-local module=routes[game.PlaceId]
-if not module and looksLikeStopTimer() then
-    module="games/stop-the-timer.lua"
+local route=routes[game.PlaceId]
+if not route and looksLikeStopTimer() then
+    route={module="games/stop-the-timer.lua", defaultTab="Auto Press"}
 end
 
-if not module then
+if not route then
     UI:Notify("ZyroHub","Jogo ainda não suportado. PlaceId: "..tostring(game.PlaceId),"warn")
     return
 end
 
 -- 2. O módulo do jogo vem ANTES.
 -- SetGame() limpa/recria as tabs, então ele não pode rodar depois do Chat.
-print("[ZyroHub Loader] Game module:",module)
-fetch(module)
+print("[ZyroHub Loader] Game module:",route.module)
+fetch(route.module)
 
--- Se um módulo antigo ainda criou conteúdo na página padrão, preserva
--- essa página como Auto Press ANTES do Chat criar a primeira tab real.
+-- Preserve legacy/default content using the CORRECT name for each game.
+-- Modules that already created real tabs are left untouched.
 if UI.PromoteDefaultToTab then
-    UI:PromoteDefaultToTab("Auto Press")
+    UI:PromoteDefaultToTab(route.defaultTab)
 end
 
 -- 3. Chat compartilhado vem POR ÚLTIMO.
 fetch("core/chat.lua")
 
-print("[ZYRO HUB LOADER v1.4] READY")
+print("[ZYRO HUB LOADER v1.5] READY")
