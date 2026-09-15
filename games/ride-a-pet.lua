@@ -42,6 +42,57 @@ env.ZyroRideState = env.ZyroRideState or {
 }
 
 local State = env.ZyroRideState
+
+-- =========================================================
+-- EGG TRACK • PERSISTÊNCIA ENTRE SERVER HOPS
+-- =========================================================
+local CONFIG_FOLDER = "ZyroHub"
+local CONFIG_FILE = CONFIG_FOLDER .. "/ride_a_pet_targets.json"
+
+local writeFileFn = (type(writefile)=="function" and writefile) or env.writefile
+local readFileFn = (type(readfile)=="function" and readfile) or env.readfile
+local isFileFn = (type(isfile)=="function" and isfile) or env.isfile
+local makeFolderFn = (type(makefolder)=="function" and makefolder) or env.makefolder
+local isFolderFn = (type(isfolder)=="function" and isfolder) or env.isfolder
+
+local function ensureConfigFolder()
+    if type(makeFolderFn)~="function" then return end
+    local exists=false
+    pcall(function()
+        if type(isFolderFn)=="function" then exists=isFolderFn(CONFIG_FOLDER) end
+    end)
+    if not exists then pcall(function() makeFolderFn(CONFIG_FOLDER) end) end
+end
+
+local function saveTrackConfig()
+    if type(writeFileFn)~="function" then return false end
+    ensureConfigFolder()
+    local payload={
+        version=1,
+        targets=State.targets or {},
+        autoHop=State.autoHop==true,
+    }
+    local ok,encoded=pcall(function() return HttpService:JSONEncode(payload) end)
+    if not ok then return false end
+    return pcall(function() writeFileFn(CONFIG_FILE,encoded) end)
+end
+
+local function loadTrackConfig()
+    if type(readFileFn)~="function" or type(isFileFn)~="function" then return false end
+    local exists=false
+    pcall(function() exists=isFileFn(CONFIG_FILE) end)
+    if not exists then return false end
+    local ok,raw=pcall(function() return readFileFn(CONFIG_FILE) end)
+    if not ok or type(raw)~="string" or raw=="" then return false end
+    local decodedOk,data=pcall(function() return HttpService:JSONDecode(raw) end)
+    if not decodedOk or type(data)~="table" then return false end
+    if type(data.targets)=="table" then State.targets=data.targets end
+    State.autoHop=data.autoHop==true
+    return true
+end
+
+loadTrackConfig()
+
 local highlights = setmetatable({}, {__mode="k"})
 local promptConnections = setmetatable({}, {__mode="k"})
 local autoBestToken = 0
@@ -221,7 +272,19 @@ local function teleportHome()
 end
 
 local function normalize(name)
-    return tostring(name or ""):lower():gsub("[%s_%-]","")
+    return tostring(name or "")
+        :lower()
+        :gsub("<.->","")
+        :gsub("[^%w]","")
+end
+
+local function eggMatchesTarget(eggName, targetKey)
+    local eggKey=normalize(eggName)
+    local wanted=normalize(targetKey)
+    if eggKey=="" or wanted=="" then return false end
+    return eggKey==wanted
+        or eggKey:find(wanted,1,true)~=nil
+        or wanted:find(eggKey,1,true)~=nil
 end
 
 local function refreshEggFolder()
@@ -249,7 +312,9 @@ end
 
 local function setTarget(name, enabled)
     local k = normalize(name)
-    if enabled then State.targets[k] = name else State.targets[k] = nil end
+    if k=="" then return end
+    if enabled then State.targets[k] = tostring(name) else State.targets[k] = nil end
+    saveTrackConfig()
 end
 
 local function updateHighlight(egg, custom)
@@ -788,12 +853,15 @@ local function hopServer()
 end
 
 local function wantedEgg()
-    for _,e in ipairs(eggList()) do
-        for k in pairs(State.targets) do
-            local n = normalize(e.Name)
-            if n == k or n:find(k,1,true) then return e end
+    local eggs=eggList()
+    for _,e in ipairs(eggs) do
+        for k,display in pairs(State.targets) do
+            if eggMatchesTarget(e.Name,k) or eggMatchesTarget(e.Name,display) then
+                return e,k
+            end
         end
     end
+    return nil,nil
 end
 
 local function startAutoHop()
@@ -804,6 +872,7 @@ local function startAutoHop()
             if next(State.targets) == nil then
                 UI:Notify("Server Hop","Selecione ao menos um ALVO.")
                 State.autoHop = false
+                saveTrackConfig()
                 break
             end
 
@@ -818,6 +887,7 @@ local function startAutoHop()
                     UI:Notify("Egg Track","Não consegui coletar com segurança: "..tostring(reason))
                 end
                 State.autoHop = false
+                saveTrackConfig()
                 break
             end
 
@@ -920,6 +990,23 @@ local function startAntiGameplayPaused()
             requestStreamHere()
         end
     end)
+end
+
+-- Mantém o hub e o Egg Track vivos depois de Server Hop, se o executor suportar.
+do
+    local queue = (type(queue_on_teleport)=="function" and queue_on_teleport)
+        or env.queue_on_teleport
+        or (env.syn and env.syn.queue_on_teleport)
+
+    if type(queue)=="function" then
+        pcall(function()
+            queue([[
+task.wait(2)
+local url="https://raw.githubusercontent.com/yLordzy/zyrohub/refs/heads/main/loader.lua?_="..tostring(DateTime.now().UnixTimestampMillis)
+loadstring(game:HttpGet(url,false))()
+]])
+        end)
+    end
 end
 
 -- =========================================================
@@ -1027,6 +1114,7 @@ end
 
 -- EGG BROWSER
 local refreshBrowser
+local refreshTrackUI
 do
     local box = card(Browser,"Egg Browser","Lista limpa com ALVO, TP e ESP individual.")
 
@@ -1168,6 +1256,7 @@ do
                     setTarget(egg.Name,not targetIsSelected(egg.Name))
                     updateHighlight(egg,customESP[egg])
                     paintTarget()
+                    if refreshTrackUI then refreshTrackUI() end
                 end)
                 tpbtn.MouseButton1Click:Connect(function() teleportTo(egg) end)
                 espbtn.MouseButton1Click:Connect(function()
@@ -1241,7 +1330,20 @@ do
     tl.Padding=UDim.new(0,6)
     tl.Parent=targetList
 
-    local function refreshTargets()
+    local status=Instance.new("Frame")
+    status.Size=UDim2.new(1,0,0,50)
+    status.BackgroundColor3=Theme.Surface2
+    status.BorderSizePixel=0
+    status.Parent=targetsCard
+    corner(status,9)
+    local statusTitle=text(status,"TRACK: aguardando alvo",9,Theme.Text,Enum.Font.GothamSemibold)
+    statusTitle.Position=UDim2.fromOffset(10,6)
+    statusTitle.Size=UDim2.new(1,-20,0,16)
+    local statusSub=text(status,"Adicione um alvo ou marque ALVO no Egg Browser.",8,Theme.Muted,Enum.Font.Gotham)
+    statusSub.Position=UDim2.fromOffset(10,25)
+    statusSub.Size=UDim2.new(1,-20,0,16)
+
+    refreshTrackUI = function()
         for _,c in ipairs(targetList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
         local n=0
         local names={}
@@ -1270,7 +1372,7 @@ do
             corner(del,7)
             del.MouseButton1Click:Connect(function()
                 setTarget(name,false)
-                refreshTargets()
+                refreshTrackUI()
                 refreshHighlights()
                 if refreshBrowser then refreshBrowser() end
             end)
@@ -1283,6 +1385,20 @@ do
             local l=text(e,"Nenhum alvo selecionado.",9,Theme.Muted,Enum.Font.Gotham)
             l.Size=UDim2.fromScale(1,1)
             l.TextXAlignment=Enum.TextXAlignment.Center
+            statusTitle.Text="TRACK: nenhum alvo"
+            statusTitle.TextColor3=Theme.Text
+            statusSub.Text="Adicione um alvo ou marque ALVO no Egg Browser."
+        else
+            local found=wantedEgg()
+            if found then
+                statusTitle.Text="ENCONTRADO: "..found.Name
+                statusTitle.TextColor3=Theme.Success
+                statusSub.Text="O alvo está disponível neste servidor."
+            else
+                statusTitle.Text="PROCURANDO • "..tostring(n).." alvo(s)"
+                statusTitle.TextColor3=Theme.Warning
+                statusSub.Text="Nenhum alvo selecionado apareceu neste servidor ainda."
+            end
         end
     end
 
@@ -1291,7 +1407,7 @@ do
         if raw=="" then return end
         setTarget(raw,true)
         Manual.Text=""
-        refreshTargets()
+        refreshTrackUI()
         refreshHighlights()
         if refreshBrowser then refreshBrowser() end
     end
@@ -1313,12 +1429,20 @@ do
     end)
     action(targetsCard,"LIMPAR ALVOS","Remove todos os targets selecionados.",function()
         table.clear(State.targets)
-        refreshTargets()
+        saveTrackConfig()
+        refreshTrackUI()
         refreshHighlights()
         if refreshBrowser then refreshBrowser() end
     end)
 
-    refreshTargets()
+    refreshTrackUI()
+
+    task.spawn(function()
+        while targetsCard and targetsCard.Parent do
+            task.wait(.75)
+            if refreshTrackUI then refreshTrackUI() end
+        end
+    end)
 end
 
 -- SERVER HOP
@@ -1332,6 +1456,7 @@ do
 
     toggle(serverCard,"Auto Hop por alvo","Procura até encontrar um dos eggs marcados como ALVO.",State.autoHop,function(v)
         State.autoHop=v
+        saveTrackConfig()
         autoHopToken+=1
         if v then startAutoHop() end
     end)
@@ -1369,11 +1494,20 @@ if Eggs then
         task.wait(.08)
         updateHighlight(e,false)
         if refreshBrowser then refreshBrowser() end
+        if refreshTrackUI then refreshTrackUI() end
     end)
     Eggs.ChildRemoved:Connect(function(e)
         if highlights[e] then pcall(function() highlights[e]:Destroy() end); highlights[e]=nil end
         if refreshBrowser then refreshBrowser() end
+        if refreshTrackUI then refreshTrackUI() end
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.6 TP-IN FLY-OUT carregado")
+-- Se o Auto Hop estava salvo antes do teleport, retoma automaticamente.
+if State.autoHop and next(State.targets)~=nil then
+    task.delay(1.2,function()
+        startAutoHop()
+    end)
+end
+
+print("[ZYRO HUB] Ride A Pet v4.7 EGG TRACK FIX carregado")
