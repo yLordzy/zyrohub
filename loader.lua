@@ -1,11 +1,11 @@
--- ZYRO HUB LOADER v1.3 • GAME FIRST, SHARED CHAT LAST
+-- ZYRO HUB LOADER v1.4 • GAME FIRST, SHARED CHAT LAST
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local BASE="https://raw.githubusercontent.com/yLordzy/zyrohub/refs/heads/main/"
 local Players=game:GetService("Players")
 local HttpService=game:GetService("HttpService")
 
-print("[ZYRO HUB LOADER v1.3] STARTING...")
+print("[ZYRO HUB LOADER v1.4] STARTING...")
 
 local function fetch(path)
     local sep=path:find("?",1,true) and "&" or "?"
@@ -58,7 +58,13 @@ end
 print("[ZyroHub Loader] Game module:",module)
 fetch(module)
 
--- 3. Chat compartilhado vem POR ÚLTIMO para sua tab não ser apagada.
+-- Se um módulo antigo ainda criou conteúdo na página padrão, preserva
+-- essa página como Auto Press ANTES do Chat criar a primeira tab real.
+if UI.PromoteDefaultToTab then
+    UI:PromoteDefaultToTab("Auto Press")
+end
+
+-- 3. Chat compartilhado vem POR ÚLTIMO.
 fetch("core/chat.lua")
 
-print("[ZYRO HUB LOADER v1.3] READY")
+print("[ZYRO HUB LOADER v1.4] READY")
