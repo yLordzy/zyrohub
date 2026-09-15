@@ -157,26 +157,8 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
-UI:Section("Controles")
-UI:Button("SPACE = Press manual","Jogando legit, basta apertar ESPAÇO em vez de clicar no botão.",function()
-    UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
-end)
-
-UI:Section("Precisão / Legit")
-
-UI:Slider(
-    "Ajuste do Press",
-    "0 ms = cravar • positivo = antes • negativo = depois",
-    -20,
-    20,
-    0,
-    1,
-    function(ms)
-        PRESS_OFFSET = ms / 1000
-        print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
-    end
-)
-
+-- Tabs reais: cada grupo fica em uma página separada no menu lateral.
+UI:Tab("Auto Press")
 UI:Toggle("Auto Press","Lê o alvo e aperta automaticamente no tempo.",false,function(on)
     autoPress=on
     pressedThisRound=false
@@ -192,7 +174,6 @@ UI:Button("Testar botão","Testa agora o botão detectado da sua mesa.",function
         task.wait(.05)
     end
     if not button then
-        -- se ainda não há timer correndo, tenta ambos os lados e escolhe o primeiro botão existente
         for _,sideName in ipairs({"Player1","Player2"}) do
             activeSide=sideName
             bindButton(sideName)
@@ -201,6 +182,31 @@ UI:Button("Testar botão","Testa agora o botão detectado da sua mesa.",function
     end
     pressButton()
 end)
+
+UI:Tab("Precisão")
+UI:Slider(
+    "Ajuste do Press",
+    "0 ms = cravar • positivo = antes • negativo = depois",
+    -20,
+    20,
+    0,
+    1,
+    function(ms)
+        PRESS_OFFSET = ms / 1000
+        print(("[STOP TIMER] Ajuste: %+.0f ms | offset=%+.3fs"):format(ms, PRESS_OFFSET))
+    end
+)
+UI:Section("Como funciona")
+UI:Button("0 ms = CRAVAR","Centro da barra. + adianta o press; - atrasa o press.",function()
+    UI:Notify("Precisão","Arraste a barra para configurar de -20 ms até +20 ms.","info")
+end)
+
+UI:Tab("Controles")
+UI:Button("SPACE = Press manual","Jogando manualmente, basta apertar ESPAÇO em vez de clicar no botão.",function()
+    UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
+end)
+
+UI:SelectTab("Auto Press")
 
 task.spawn(function()
     local lastStationCheck=0
@@ -237,4 +243,4 @@ task.spawn(function()
 end)
 
 print("[STOP TIMER] SPACE: press manual ativo")
-print("[ZYRO HUB] Stop The Timer v2.5 SLIDER carregado")
+print("[ZYRO HUB] Stop The Timer v2.6 REAL TABS + SLIDER carregado")
