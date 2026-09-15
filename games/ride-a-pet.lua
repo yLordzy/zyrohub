@@ -39,14 +39,14 @@ env.ZyroRideState = env.ZyroRideState or {
     autoBest = false,
     autoHop = false,
     antiGameplayPaused = true,
-    returnFlightTime = 5.00,
+    returnFlightTime = 13.00,
     travelMode = "guided",
 }
 
 local State = env.ZyroRideState
 
 -- Garante que configs antigas (ex.: 4.00s) não escapem do novo limite.
-State.returnFlightTime = math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00)
+State.returnFlightTime = math.clamp(tonumber(State.returnFlightTime) or 13.00, 5.00, 15.00)
 
 -- =========================================================
 -- EGG TRACK • PERSISTÊNCIA ENTRE SERVER HOPS
@@ -847,9 +847,9 @@ local function safeCollect(target)
     end
 
     local flightTime = math.clamp(
-        tonumber(State.returnFlightTime) or 5.00,
+        tonumber(State.returnFlightTime) or 13.00,
         5.00,
-        10.00
+        15.00
     )
 
     local eggCF = CFrame.new(pos + Vector3.new(0, 2.5, 4), pos)
@@ -868,7 +868,7 @@ local function safeCollect(target)
     end
 
     -- Tempo para o servidor reconhecer chegada.
-    task.wait(mode == "teleport" and 1.25 or 0.85)
+    task.wait(mode == "teleport" and 1.75 or 2.00)
 
     local fired, why = normalPromptInteract(target)
     if not fired then
@@ -884,7 +884,7 @@ local function safeCollect(target)
     end
 
     -- Dá tempo para a coleta ser confirmada.
-    task.wait(1.50)
+    task.wait(mode == "teleport" and 2.00 or 2.50)
 
     -- VOLTA
     if mode == "teleport" then
@@ -1366,15 +1366,15 @@ do
 
     slider(
         automation,
-        "Velocidade do voo • 5s ↔ 10s",
-        "Usado apenas no modo TELEGUIADO. Mínimo 5s • Máximo 10s.",
+        "Velocidade do voo • 5s ↔ 15s",
+        "Usado apenas no modo TELEGUIADO. Mínimo 5s • Máximo 15s. Padrão: 13s.",
         5.00,
-        10.00,
-        math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00),
+        15.00,
+        math.clamp(tonumber(State.returnFlightTime) or 13.00, 5.00, 15.00),
         0.10,
         "s",
         function(v)
-            State.returnFlightTime = math.clamp(tonumber(v) or 5.00, 5.00, 10.00)
+            State.returnFlightTime = math.clamp(tonumber(v) or 13.00, 5.00, 15.00)
         end
     )
 
@@ -1801,4 +1801,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.5 TELEPORT + TELEGUIADO carregado")
+print("[ZYRO HUB] Ride A Pet v5.6 GUIDED 13S carregado")
