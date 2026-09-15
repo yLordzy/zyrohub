@@ -6,6 +6,7 @@ local WS=game:GetService("Workspace")
 local UIS=game:GetService("UserInputService")
 local lp=Players.LocalPlayer
 UI:SetGame("Ride A Pet","ESP, interação, eggs e utilidades")
+if UI.PromoteDefaultToTab then UI:PromoteDefaultToTab("Principal") end
 
 local state={esp=false,insta=false}
 local function rendered() return WS:FindFirstChild("RenderedEggs") end
