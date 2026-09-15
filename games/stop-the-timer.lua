@@ -1,8 +1,6 @@
--- ZYRO HUB • STOP THE TIMER
--- Módulo separado para ser carregado pelo loader.lua.
--- Sem a antiga StopTimerHelper GUI: usa a UI do ZyroHub.
-
+-- ZYRO HUB • STOP THE TIMER v2
 local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
 local VIM = game:GetService("VirtualInputManager")
 local Workspace = game:GetService("Workspace")
 
@@ -10,294 +8,213 @@ local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local Normal = Workspace:WaitForChild("GameStations"):WaitForChild("Normal")
 local UI = getgenv().ZyroUI
-
-if not UI then
-    error("[ZyroHub StopTimer] core/ui.lua não foi carregado.")
-end
+if not UI then error("[ZyroHub StopTimer] UI não carregada") end
 
 UI:SetGame("Stop The Timer", "Auto Press")
 
-local station = nil
-local button = nil
-local activeTimer = nil
-local target = nil
-
 local autoPress = false
+local station, activeTimer, activeSide, button
+local target
 local pressedThisRound = false
+local PRESS_OFFSET = 0.015
+local lastValues = {Player1=nil, Player2=nil}
 
--- Pequena antecipação para compensar atraso entre leitura -> input.
--- Ajuste depois se o executor/latência estiver apertando tarde ou cedo.
-local PRESS_OFFSET = 0.02
+local function parseTime(text)
+    local s = tostring(text or ""):gsub(",", ".")
+    local n = s:match("(%d+%.%d+)") or s:match("(%d+)")
+    return n and tonumber(n) or nil
+end
 
 local function getPos(obj)
     if not obj then return nil end
-    if obj:IsA("BasePart") then
-        return obj.Position
-    elseif obj:IsA("Model") then
-        return obj:GetPivot().Position
-    end
+    if obj:IsA("BasePart") then return obj.Position end
+    if obj:IsA("Model") then return obj:GetPivot().Position end
 end
 
-local function parseTime(text)
-    if not text then return nil end
-    local n = tostring(text):match("(%d+%.%d+)")
-        or tostring(text):match("(%d+,%d+)")
-        or tostring(text):match("(%d+)")
-    if not n then return nil end
-    return tonumber((n:gsub(",", ".")))
-end
-
--- =========================================================
--- ALVO RANDOMIZADO
--- =========================================================
-
-local targetLabel = PlayerGui
-    :WaitForChild("GameUI")
-    :WaitForChild("SecondsToSet")
+local targetLabel = PlayerGui:WaitForChild("GameUI"):WaitForChild("SecondsToSet")
 
 local function readTarget()
-    local newTarget = parseTime(targetLabel.Text)
-    if newTarget then
-        if target ~= newTarget then
-            target = newTarget
-            pressedThisRound = false
-            activeTimer = nil
-            button = nil
-
-            print(
-                "[ZyroHub StopTimer] Novo alvo:",
-                string.format("%.2f", target)
-            )
-        end
+    local n = parseTime(targetLabel.Text)
+    if n and n ~= target then
+        target = n
+        pressedThisRound = false
+        print(("[STOP TIMER] NOVO ALVO: %.2f"):format(target))
     end
 end
-
 readTarget()
 targetLabel:GetPropertyChangedSignal("Text"):Connect(readTarget)
-
--- =========================================================
--- MESA MAIS PRÓXIMA
--- =========================================================
 
 local function findStation()
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return nil end
-
-    local bestStation
-    local bestDistance = math.huge
-
-    for _, s in ipairs(Normal:GetChildren()) do
-        local timer = s:FindFirstChild("Timer")
-        if timer then
-            local pos = getPos(timer)
-            if pos then
-                local distance = (root.Position - pos).Magnitude
-                if distance < bestDistance then
-                    bestDistance = distance
-                    bestStation = s
-                end
-            end
+    local best, dist = nil, math.huge
+    for _,s in ipairs(Normal:GetChildren()) do
+        local t = s:FindFirstChild("Timer")
+        local pos = getPos(t)
+        if pos then
+            local d = (root.Position-pos).Magnitude
+            if d < dist then best,dist=s,d end
         end
     end
-
-    return bestStation
+    return best
 end
 
-local function getTimers(s)
-    local result = {}
-    if not s then return result end
-
-    local timerFolder = s:FindFirstChild("Timer")
-    if not timerFolder then return result end
-
-    for _, sideName in ipairs({"Player1", "Player2"}) do
-        local side = timerFolder:FindFirstChild(sideName)
-        local surface = side and side:FindFirstChild("SurfaceGui")
-        local timerText = surface and surface:FindFirstChild("TimerText")
-
-        if timerText then
-            result[sideName] = timerText
-        end
-    end
-
-    return result
+local function getTimer(s, sideName)
+    local timerFolder=s and s:FindFirstChild("Timer")
+    local side=timerFolder and timerFolder:FindFirstChild(sideName)
+    local surface=side and side:FindFirstChild("SurfaceGui")
+    return surface and surface:FindFirstChild("TimerText")
 end
 
-local lastValues = {
-    Player1 = nil,
-    Player2 = nil
-}
-
-local activeSide = nil
+local function bindButton(sideName)
+    local buttons=station and station:FindFirstChild("Buttons")
+    local side=buttons and buttons:FindFirstChild(sideName)
+    button=side and side:FindFirstChild("Button")
+end
 
 local function detectActiveTimer()
     if not station then return end
-
-    local timers = getTimers(station)
-
-    for sideName, timerText in pairs(timers) do
-        local value = parseTime(timerText.Text)
-
+    for _,sideName in ipairs({"Player1","Player2"}) do
+        local txt=getTimer(station,sideName)
+        local value=txt and parseTime(txt.Text)
         if value then
-            local previous = lastValues[sideName]
-
-            -- Se voltou para zero, começou uma nova tentativa.
-            if previous and value < previous and value <= 0.05 then
-                pressedThisRound = false
+            local prev=lastValues[sideName]
+            if prev and value < prev and value <= 0.05 then
+                pressedThisRound=false
             end
-
-            -- O lado cujo contador está subindo é o lado ativo.
-            if previous and value > previous then
-                activeTimer = timerText
-                activeSide = sideName
-
-                local buttons = station:FindFirstChild("Buttons")
-                local side = buttons and buttons:FindFirstChild(sideName)
-                button = side and side:FindFirstChild("Button")
+            if prev and value > prev then
+                activeTimer=txt
+                activeSide=sideName
+                bindButton(sideName)
             end
-
-            lastValues[sideName] = value
+            lastValues[sideName]=value
         end
     end
 end
 
--- =========================================================
--- CLIQUE NO BOTÃO 3D
--- =========================================================
-
-local function clickButton()
+local function pressButton()
     if not button then
-        warn("[ZyroHub StopTimer] Botão ainda não identificado.")
+        warn("[STOP TIMER] Sem botão detectado")
         return false
     end
 
-    local camera = Workspace.CurrentCamera
-    local pos = getPos(button)
+    -- Melhor opção: aciona diretamente o ClickDetector, sem a GUI bloquear o clique.
+    local cd = button:FindFirstChildWhichIsA("ClickDetector", true)
+    if cd and fireclickdetector then
+        local ok,err=pcall(function() fireclickdetector(cd) end)
+        if ok then
+            print("[STOP TIMER] PRESS via ClickDetector")
+            return true
+        end
+        warn("[STOP TIMER] ClickDetector falhou:",err)
+    end
+
+    -- Fallback para o mesmo clique de mouse do helper original.
+    local camera=Workspace.CurrentCamera
+    local pos=getPos(button)
     if not camera or not pos then return false end
-
-    local screenPos, visible = camera:WorldToViewportPoint(pos)
+    local sp,visible=camera:WorldToViewportPoint(pos)
     if not visible then
-        warn("[ZyroHub StopTimer] Botão está fora da tela.")
+        warn("[STOP TIMER] Botão fora da tela")
         return false
     end
 
-    VIM:SendMouseButtonEvent(
-        screenPos.X,
-        screenPos.Y,
-        0,
-        true,
-        game,
-        0
-    )
-
+    VIM:SendMouseButtonEvent(sp.X,sp.Y,0,true,game,0)
     task.wait(0.008)
-
-    VIM:SendMouseButtonEvent(
-        screenPos.X,
-        screenPos.Y,
-        0,
-        false,
-        game,
-        0
-    )
-
+    VIM:SendMouseButtonEvent(sp.X,sp.Y,0,false,game,0)
+    print("[STOP TIMER] PRESS via mouse")
     return true
 end
 
 -- =========================================================
--- UI DO ZYROHUB
+-- SPACE PARA JOGAR MANUALMENTE
 -- =========================================================
+-- Mantém o comportamento do helper original: SPACE aperta o
+-- botão 3D detectado, sem precisar clicar com o mouse.
+UIS.InputBegan:Connect(function(input, processed)
+    if processed then return end
 
-UI:Toggle(
-    "Auto Press",
-    "Lê o alvo randomizado e aperta automaticamente quando o timer chegar nele.",
-    false,
-    function(on)
-        autoPress = on
-
-        if on then
-            pressedThisRound = false
-            readTarget()
-            print("[ZyroHub StopTimer] Auto Press: ON")
-        else
-            print("[ZyroHub StopTimer] Auto Press: OFF")
-        end
-    end
-)
-
-UI:Button(
-    "Testar botão",
-    "Aperta uma vez o botão 3D detectado da sua mesa.",
-    function()
+    if input.KeyCode == Enum.KeyCode.Space then
         station = findStation()
         detectActiveTimer()
-        clickButton()
-    end
-)
 
--- =========================================================
--- LOOP
--- =========================================================
+        -- Se a rodada ainda não revelou o lado ativo, tenta localizar
+        -- um botão disponível para permitir o teste/manual.
+        if not button then
+            for _, sideName in ipairs({"Player1", "Player2"}) do
+                activeSide = sideName
+                bindButton(sideName)
+                if button then break end
+            end
+        end
+
+        pressButton()
+    end
+end)
+
+UI:Section("Controles")
+UI:Button("SPACE = Press manual","Jogando legit, basta apertar ESPAÇO em vez de clicar no botão.",function()
+    UI:Notify("Stop The Timer","Atalho SPACE está ativo.","info")
+end)
+
+UI:Toggle("Auto Press","Lê o alvo e aperta automaticamente no tempo.",false,function(on)
+    autoPress=on
+    pressedThisRound=false
+    readTarget()
+    print("[STOP TIMER] Auto Press:",on and "ON" or "OFF")
+end)
+
+UI:Button("Testar botão","Testa agora o botão detectado da sua mesa.",function()
+    station=findStation()
+    for _=1,20 do
+        detectActiveTimer()
+        if button then break end
+        task.wait(.05)
+    end
+    if not button then
+        -- se ainda não há timer correndo, tenta ambos os lados e escolhe o primeiro botão existente
+        for _,sideName in ipairs({"Player1","Player2"}) do
+            activeSide=sideName
+            bindButton(sideName)
+            if button then break end
+        end
+    end
+    pressButton()
+end)
 
 task.spawn(function()
-    local lastStationCheck = 0
-
-    while task.wait(0.005) do
-        if os.clock() - lastStationCheck > 0.5 then
-            local newStation = findStation()
-
-            if newStation ~= station then
-                station = newStation
-                activeTimer = nil
-                activeSide = nil
-                button = nil
-                lastValues.Player1 = nil
-                lastValues.Player2 = nil
-                pressedThisRound = false
-
-                if station then
-                    print("[ZyroHub StopTimer] Mesa:", station.Name)
-                end
+    local lastStationCheck=0
+    while task.wait(0.003) do
+        if os.clock()-lastStationCheck >= .25 then
+            local s=findStation()
+            if s ~= station then
+                station=s
+                activeTimer=nil
+                activeSide=nil
+                button=nil
+                lastValues.Player1=nil
+                lastValues.Player2=nil
+                pressedThisRound=false
+                if s then print("[STOP TIMER] MESA:",s.Name) end
             end
-
-            lastStationCheck = os.clock()
+            lastStationCheck=os.clock()
         end
 
         detectActiveTimer()
 
         if autoPress and target and activeTimer and not pressedThisRound then
-            local current = parseTime(activeTimer.Text)
-
-            if current then
-                local triggerAt = math.max(0, target - PRESS_OFFSET)
-
-                if current > 0 and current >= triggerAt then
-                    -- Marca antes para impedir dois cliques no mesmo frame/rodada.
-                    pressedThisRound = true
-
-                    print(
-                        "[ZyroHub StopTimer] AUTO PRESS",
-                        "alvo=" .. string.format("%.2f", target),
-                        "timer=" .. string.format("%.2f", current),
-                        "lado=" .. tostring(activeSide)
-                    )
-
-                    if not clickButton() then
-                        -- Se o botão ainda não estava disponível, permite nova tentativa.
-                        pressedThisRound = false
-                    end
-                end
+            local current=parseTime(activeTimer.Text)
+            if current and current > 0 and current >= math.max(0,target-PRESS_OFFSET) then
+                pressedThisRound=true
+                print(("[STOP TIMER] DISPARO alvo=%.2f atual=%.2f lado=%s"):format(
+                    target,current,tostring(activeSide)
+                ))
+                if not pressButton() then pressedThisRound=false end
             end
         end
     end
 end)
 
-print("========================================")
-print("ZYRO HUB • STOP THE TIMER")
-print("Alvo randomizado: automático")
-print("Mesa: automática")
-print("Timer ativo: automático")
-print("Auto Press: disponível no ZyroHub")
-print("Press offset:", PRESS_OFFSET)
-print("========================================")
+print("[STOP TIMER] SPACE: press manual ativo")
+print("[ZYRO HUB] Stop The Timer v2.1 carregado")
