@@ -39,7 +39,7 @@ env.ZyroRideState = env.ZyroRideState or {
     autoBest = false,
     autoHop = false,
     antiGameplayPaused = true,
-    returnFlightTime = 4.00,
+    returnFlightTime = 5.00,
 }
 
 local State = env.ZyroRideState
@@ -1242,7 +1242,7 @@ do
         "Tempo do voo de volta para sua BASE. Maior = mais devagar/seguro.",
         0.60,
         4.00,
-        tonumber(State.returnFlightTime) or 4.00,
+        tonumber(State.returnFlightTime) or 5.00,
         0.05,
         "s",
         function(v)
@@ -1673,4 +1673,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.0 HOME RETURN carregado")
+print("[ZYRO HUB] Ride A Pet v5.1 HOME RETURN 5S carregado")
