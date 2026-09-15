@@ -1,4 +1,4 @@
--- ZyroHub • Swing For An Egg v1.2 • AUTO STEAL BEST EGG
+-- ZyroHub • Swing For An Egg v1.3 • TP BURST
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -29,6 +29,27 @@ local function tpCF(cf)
     if not r or not cf then return false end
     r.CFrame = cf
     return true
+end
+
+-- Reforço de TP para conexões com atraso:
+-- reaplica o MESMO destino algumas vezes e depois para.
+local function tpBurst(cf, repeats, interval)
+    repeats = repeats or 3
+    interval = interval or 0.12
+
+    if not cf then return false end
+
+    local ok = false
+    for i = 1, repeats do
+        if tpCF(cf) then
+            ok = true
+        end
+        if i < repeats then
+            task.wait(interval)
+        end
+    end
+
+    return ok
 end
 
 local function latestZone()
@@ -195,7 +216,7 @@ local function stealBestEggOnce()
     local cf = spawnedEggCF(egg)
     if not cf then return false end
 
-    if tpCF(cf) then
+    if tpBurst(cf, 3, 0.12) then
         lastTarget = egg
         lastTeleportAt = now
 
@@ -250,8 +271,8 @@ UI:Button("TP ÚLTIMA ZONA", "Detecta automaticamente a maior ZoneN e vai até u
         return
     end
 
-    if tpCF(cf) then
-        UI:Notify("Swing For An Egg", "Teleportado para Zone"..tostring(number)..".")
+    if tpBurst(cf, 3, 0.12) then
+        UI:Notify("Swing For An Egg", "Teleportado x3 para Zone"..tostring(number)..".")
     end
 end)
 
@@ -262,8 +283,8 @@ UI:Button("TP MINHA BASE", "Volta para o Spawn da sua Plot automaticamente.", fu
         return
     end
 
-    if tpCF(cf) then
-        UI:Notify("Swing For An Egg", "Teleportado para "..plot.Name..".")
+    if tpBurst(cf, 3, 0.12) then
+        UI:Notify("Swing For An Egg", "Teleportado x3 para "..plot.Name..".")
     end
 end)
 
@@ -330,4 +351,4 @@ UI:Button(
 
 UI:SelectTab("Teleports")
 
-print("[ZYRO HUB] Swing For An Egg v1.2 AUTO STEAL BEST EGG carregado")
+print("[ZYRO HUB] Swing For An Egg v1.3 TP BURST + AUTO STEAL carregado")
