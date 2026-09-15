@@ -5,10 +5,42 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 local StarterGui = game:GetService("StarterGui")
+local UIS = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
 local LP = Players.LocalPlayer
 local UI = getgenv().ZyroUI
 if not UI then error("[ZyroHub Chat] UI não carregada") end
+
+local parent = CoreGui
+pcall(function()
+    if gethui then parent = gethui() end
+end)
+
+local oldController = parent:FindFirstChild("ZyroChatController")
+if oldController then oldController:Destroy() end
+
+local controller = Instance.new("ScreenGui")
+controller.Name = "ZyroChatController"
+controller.ResetOnSpawn = false
+controller.IgnoreGuiInset = true
+controller.DisplayOrder = 999999
+controller.Parent = parent
+
+-- Botão de acesso rápido que continua existindo mesmo com o hub escondido.
+local quick = Instance.new("TextButton")
+quick.Name = "QuickChat"
+quick.AnchorPoint = Vector2.new(0,1)
+quick.Position = UDim2.new(0,18,1,-18)
+quick.Size = UDim2.fromOffset(46,46)
+quick.BackgroundColor3 = Color3.fromRGB(22,23,32)
+quick.BorderSizePixel = 0
+quick.Text = "CHAT"
+quick.TextColor3 = Color3.new(1,1,1)
+quick.TextSize = 10
+quick.Font = Enum.Font.GothamBold
+quick.Parent = controller
+Instance.new("UICorner",quick).CornerRadius = UDim.new(0,13)
 
 local old = getgenv().ZyroChat
 if old and old.Destroy then pcall(old.Destroy) end
@@ -236,8 +268,36 @@ local function setup()
     addMessage(nil,"Fallback de chat conectado.",true)
 end
 
+local function openChat()
+    -- A UI modular mantém a aba dentro do hub. Primeiro garante que o hub esteja visível.
+    if UI.Show then pcall(function() UI:Show() end) end
+    if UI.SetVisible then pcall(function() UI:SetVisible(true) end) end
+    pcall(function() UI:SelectTab("Chat") end)
+
+    task.defer(function()
+        if input and input.Parent then
+            pcall(function() input:CaptureFocus() end)
+        end
+    end)
+end
+
+quick.MouseButton1Click:Connect(openChat)
+
+-- "/" abre o Chat Global como no hub original.
+table.insert(connections, UIS.InputBegan:Connect(function(key, processed)
+    if processed then return end
+    if key.KeyCode == Enum.KeyCode.Slash then
+        openChat()
+    end
+end))
+
+function Chat.Open()
+    openChat()
+end
+
 function Chat.Destroy()
     disconnectAll()
+    if controller then controller:Destroy() end
 end
 function Chat.Reconnect()
     setup()
