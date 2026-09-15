@@ -78,6 +78,22 @@ function UI:Clear()
     tabs={}; current=nil; defaultPage=nil; hasRealTabs=false
 end
 function UI:PromoteDefaultToTab(name)
+    name=tostring(name or "Principal")
+
+    -- If the default page was already promoted, allow the loader/module
+    -- to correct its label without rebuilding the whole interface.
+    if hasRealTabs and tabs.__defaultPromoted then
+        local oldName=tabs.__defaultPromoted
+        local tab=tabs[oldName]
+        if tab and oldName~=name then
+            tabs[oldName]=nil
+            tabs[name]=tab
+            tabs.__defaultPromoted=name
+            if tab.button then tab.button.Text="  "..name end
+        end
+        return true
+    end
+
     if hasRealTabs or not defaultPage then return false end
     hasRealTabs=true
     local b=Instance.new("TextButton",side)
@@ -92,6 +108,7 @@ function UI:PromoteDefaultToTab(name)
     Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)
     local tab={page=defaultPage,button=b}
     tabs[name]=tab
+    tabs.__defaultPromoted=name
     b.MouseButton1Click:Connect(function() switchTab(tab) end)
     defaultPage=nil
     switchTab(tab)
@@ -242,5 +259,5 @@ local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
-print("[ZYRO HUB] UI v2.0 NEBULA carregada")
+print("[ZYRO HUB] UI v2.1 NEBULA ROUTES carregada")
 return UI
