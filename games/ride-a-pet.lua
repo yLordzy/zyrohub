@@ -39,6 +39,7 @@ env.ZyroRideState = env.ZyroRideState or {
     autoBest = false,
     autoHop = false,
     antiGameplayPaused = true,
+    returnFlightTime = 1.65,
 }
 
 local State = env.ZyroRideState
@@ -237,6 +238,121 @@ local function toggle(parent, titleText, subtitleText, initial, cb)
     end
     render()
     return {Get=function() return value end, Set=function(v) value=v==true; render(); if cb then cb(value) end end}
+end
+
+
+local function slider(parent, titleText, subtitleText, minValue, maxValue, defaultValue, step, suffix, cb)
+    local value = math.clamp(tonumber(defaultValue) or minValue, minValue, maxValue)
+    step = step or 0.1
+    suffix = suffix or ""
+
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1,0,0,82)
+    holder.BackgroundColor3 = Theme.Surface2
+    holder.BorderSizePixel = 0
+    holder.Parent = parent
+    corner(holder,12)
+    stroke(holder,Theme.Accent,.88,1)
+
+    local title = text(holder,titleText,11,Theme.Text,Enum.Font.GothamSemibold)
+    title.Position = UDim2.fromOffset(12,7)
+    title.Size = UDim2.new(1,-100,0,17)
+
+    local sub = text(holder,subtitleText or "",8,Theme.Muted,Enum.Font.Gotham)
+    sub.Position = UDim2.fromOffset(12,27)
+    sub.Size = UDim2.new(1,-24,0,13)
+
+    local val = text(holder,"",10,Theme.Accent2,Enum.Font.GothamBold)
+    val.Position = UDim2.new(1,-90,0,7)
+    val.Size = UDim2.fromOffset(78,17)
+    val.TextXAlignment = Enum.TextXAlignment.Right
+
+    local bar = Instance.new("Frame")
+    bar.Active = true
+    bar.Position = UDim2.fromOffset(12,58)
+    bar.Size = UDim2.new(1,-24,0,7)
+    bar.BackgroundColor3 = Theme.Surface3
+    bar.BorderSizePixel = 0
+    bar.Parent = holder
+    corner(bar,99)
+
+    local fill = Instance.new("Frame")
+    fill.BackgroundColor3 = Theme.Accent
+    fill.BorderSizePixel = 0
+    fill.Parent = bar
+    corner(fill,99)
+
+    local knob = Instance.new("Frame")
+    knob.AnchorPoint = Vector2.new(.5,.5)
+    knob.Size = UDim2.fromOffset(16,16)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel = 0
+    knob.Parent = bar
+    corner(knob,99)
+
+    local dragging = false
+
+    local function round(v)
+        return math.clamp(
+            math.floor(((v-minValue)/step)+0.5)*step+minValue,
+            minValue,
+            maxValue
+        )
+    end
+
+    local function draw(call)
+        local alpha = (value-minValue)/(maxValue-minValue)
+        fill.Size = UDim2.new(alpha,0,1,0)
+        knob.Position = UDim2.new(alpha,0,.5,0)
+        val.Text = string.format("%.2f%s", value, suffix)
+        if call and cb then cb(value) end
+    end
+
+    local function fromX(x)
+        local alpha = math.clamp(
+            (x-bar.AbsolutePosition.X)/math.max(1,bar.AbsoluteSize.X),
+            0,1
+        )
+        value = round(minValue + (maxValue-minValue)*alpha)
+        draw(true)
+    end
+
+    local function begin(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            fromX(input.Position.X)
+        end
+    end
+
+    bar.InputBegan:Connect(begin)
+    knob.InputBegan:Connect(begin)
+
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and (
+            input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch
+        ) then
+            fromX(input.Position.X)
+        end
+    end)
+
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    draw(false)
+
+    return {
+        Get = function() return value end,
+        Set = function(v)
+            value = round(tonumber(v) or value)
+            draw(true)
+        end
+    }
 end
 
 local function root()
@@ -624,7 +740,7 @@ local function safeCollect(target)
     local fired, why = normalPromptInteract(target)
     if not fired then
         -- Mesmo se falhar, volta voando para onde estava.
-        flyToCFrame(returnCF, 1.55)
+        flyToCFrame(returnCF, math.max(0.5, tonumber(State.returnFlightTime) or 1.65))
         return false, why
     end
 
@@ -632,7 +748,7 @@ local function safeCollect(target)
     task.wait(1.10)
 
     -- 5) Volta VOANDO, não por teleport instantâneo.
-    flyToCFrame(returnCF, 1.65)
+    flyToCFrame(returnCF, math.max(0.5, tonumber(State.returnFlightTime) or 1.65))
 
     return true
 end
@@ -1087,6 +1203,20 @@ do
             UI:Notify("Anti Pause","Anti Gameplay Paused desativado.")
         end
     end)
+    slider(
+        automation,
+        "Velocidade da volta",
+        "Tempo do voo de retorno. Maior = mais devagar/seguro.",
+        0.60,
+        4.00,
+        tonumber(State.returnFlightTime) or 1.65,
+        0.05,
+        "s",
+        function(v)
+            State.returnFlightTime = v
+        end
+    )
+
     toggle(automation,"Auto Best Egg","Procura Cherub, coleta e volta para sua plot.",State.autoBest,function(v)
         State.autoBest=v
         autoBestToken+=1
@@ -1510,4 +1640,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.8 SLOW RETURN carregado")
+print("[ZYRO HUB] Ride A Pet v4.9 RETURN SPEED SLIDER carregado")
