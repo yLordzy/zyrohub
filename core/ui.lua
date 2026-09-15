@@ -120,6 +120,17 @@ function UI:Slider(text,desc,minValue,maxValue,defaultValue,step,cb)
     UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
     draw(false); return function(v) value=round(tonumber(v) or value); draw(true) end
 end
+function UI:Show()
+    if sg then sg.Enabled=true end
+    if main then main.Visible=true end
+end
+function UI:Hide()
+    if main then main.Visible=false end
+end
+function UI:SetVisible(v)
+    if sg then sg.Enabled=true end
+    if main then main.Visible=(v and true or false) end
+end
 function UI:Notify(t,m,k) print(("[ZyroHub] %s: %s"):format(tostring(t),tostring(m))) end
 
 local dock=Instance.new("ScreenGui"); dock.Name="ZyroHubMobileDock"; dock.ResetOnSpawn=false; dock.IgnoreGuiInset=true; dock.Parent=parent
