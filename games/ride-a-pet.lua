@@ -554,7 +554,7 @@ local function flyToCFrame(destinationCFrame, duration)
     local endPos = destinationCFrame.Position
 
     -- Faz um arco simples: sobe, cruza e desce.
-    local apexY = math.max(startPos.Y, endPos.Y) + 18
+    local apexY = math.max(startPos.Y, endPos.Y) + 24
     local started = os.clock()
 
     while r.Parent and os.clock() - started < duration do
@@ -624,15 +624,15 @@ local function safeCollect(target)
     local fired, why = normalPromptInteract(target)
     if not fired then
         -- Mesmo se falhar, volta voando para onde estava.
-        flyToCFrame(returnCF, .85)
+        flyToCFrame(returnCF, 1.55)
         return false, why
     end
 
     -- 4) Dá uma pequena janela para o servidor confirmar a coleta.
-    task.wait(.35)
+    task.wait(1.10)
 
     -- 5) Volta VOANDO, não por teleport instantâneo.
-    flyToCFrame(returnCF, .90)
+    flyToCFrame(returnCF, 1.65)
 
     return true
 end
@@ -1097,7 +1097,7 @@ do
     action(quick,"TP HOME","Voltar para sua plot.",function()
         if not teleportHome() then UI:Notify("Teleport","Sua plot não foi encontrada.") end
     end)
-    action(quick,"COLETAR CHERUB","Dá TP perto do Cherub, coleta e volta voando rápido.",function()
+    action(quick,"COLETAR CHERUB","Dá TP perto do Cherub, espera confirmar a coleta e volta voando mais devagar.",function()
         local e=findCherub()
         if e then
             local worked, reason=safeCollect(e)
@@ -1414,7 +1414,7 @@ do
     Add.MouseButton1Click:Connect(addManual)
     Manual.FocusLost:Connect(function(enter) if enter then addManual() end end)
 
-    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Dá TP perto do alvo, coleta e volta voando rápido.",function()
+    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Dá TP perto do alvo, espera confirmar e volta voando mais devagar.",function()
         local e=wantedEgg()
         if e then
             local worked, reason=safeCollect(e)
@@ -1461,7 +1461,7 @@ do
         if v then startAutoHop() end
     end)
 
-    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, dá TP perto dele, coleta e volta voando.",function()
+    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, coleta, espera confirmar e volta voando devagar.",function()
         local e=wantedEgg()
         if e then
             UI:Notify("Egg Track","Encontrado: "..e.Name)
@@ -1476,7 +1476,7 @@ do
         end
     end)
 
-    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub dá TP perto do egg, coleta e volta voando em vez de teleportar de volta.")
+    local note=card(Servers,"Como usar","1. Abra Egg Browser • 2. Marque ALVO • 3. Ative Auto Hop. Quando achar, o hub dá TP perto do egg, espera a coleta confirmar e só então volta voando.")
     local info=text(note,"Os alvos ficam salvos enquanto o ambiente do executor continuar ativo.",9,Theme.Muted,Enum.Font.Gotham)
     info.Size=UDim2.new(1,0,0,30)
     info.TextWrapped=true
@@ -1510,4 +1510,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v4.7 EGG TRACK FIX carregado")
+print("[ZYRO HUB] Ride A Pet v4.8 SLOW RETURN carregado")
