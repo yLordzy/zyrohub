@@ -54,8 +54,15 @@ local function makePage(name)
     return page
 end
 local function ensureDefault()
-    if not defaultPage then defaultPage=makePage("Default"); defaultPage.Visible=true end
-    if not current then current=defaultPage end
+    -- If a real/promoted tab is already selected, NEVER create a new Default page.
+    -- The old behavior created an empty ScrollingFrame on top of Principal,
+    -- which visually hid every Ride A Pet control even though they existed.
+    if current then return current end
+    if not defaultPage then
+        defaultPage=makePage("Default")
+        defaultPage.Visible=true
+    end
+    current=defaultPage
     return current
 end
 local function switchTab(tab)
@@ -259,5 +266,5 @@ local dragging,start,p0
 top.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=true; start=i.Position; p0=main.Position end end)
 UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dragging=false end end)
 UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then local d=i.Position-start; main.Position=UDim2.new(p0.X.Scale,p0.X.Offset+d.X,p0.Y.Scale,p0.Y.Offset+d.Y) end end)
-print("[ZYRO HUB] UI v2.2 NEBULA TABFIX carregada")
+print("[ZYRO HUB] UI v2.3 NEBULA PAGEFIX carregada")
 return UI
