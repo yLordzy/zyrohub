@@ -40,6 +40,7 @@ env.ZyroRideState = env.ZyroRideState or {
     autoHop = false,
     antiGameplayPaused = true,
     returnFlightTime = 5.00,
+    travelMode = "guided",
 }
 
 local State = env.ZyroRideState
@@ -243,6 +244,90 @@ local function toggle(parent, titleText, subtitleText, initial, cb)
     return {Get=function() return value end, Set=function(v) value=v==true; render(); if cb then cb(value) end end}
 end
 
+
+
+local function modeSelector(parent, titleText, subtitleText, initialMode, cb)
+    local mode = initialMode == "teleport" and "teleport" or "guided"
+
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1,0,0,86)
+    holder.BackgroundColor3 = Theme.Surface2
+    holder.BorderSizePixel = 0
+    holder.Parent = parent
+    corner(holder,12)
+    stroke(holder,Theme.Accent,.88,1)
+
+    local title = text(holder,titleText,11,Theme.Text,Enum.Font.GothamSemibold)
+    title.Position = UDim2.fromOffset(12,7)
+    title.Size = UDim2.new(1,-24,0,17)
+
+    local sub = text(holder,subtitleText or "",8,Theme.Muted,Enum.Font.Gotham)
+    sub.Position = UDim2.fromOffset(12,27)
+    sub.Size = UDim2.new(1,-24,0,13)
+
+    local row = Instance.new("Frame")
+    row.BackgroundTransparency = 1
+    row.Position = UDim2.fromOffset(12,48)
+    row.Size = UDim2.new(1,-24,0,30)
+    row.Parent = holder
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.Padding = UDim.new(0,8)
+    layout.Parent = row
+
+    local function mk(labelText, value)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(.5,-4,1,0)
+        b.BorderSizePixel = 0
+        b.AutoButtonColor = false
+        b.Text = labelText
+        b.TextSize = 9
+        b.Font = Enum.Font.GothamSemibold
+        b.Parent = row
+        corner(b,9)
+
+        local function paint()
+            local selected = mode == value
+            b.BackgroundColor3 = selected and Theme.Accent or Theme.Surface3
+            b.TextColor3 = selected and Theme.Text or Theme.Muted
+        end
+
+        b.MouseButton1Click:Connect(function()
+            mode = value
+            for _,child in ipairs(row:GetChildren()) do
+                if child:IsA("TextButton") and child:GetAttribute("ModeValue") then
+                    local selected = child:GetAttribute("ModeValue") == mode
+                    child.BackgroundColor3 = selected and Theme.Accent or Theme.Surface3
+                    child.TextColor3 = selected and Theme.Text or Theme.Muted
+                end
+            end
+            if cb then cb(mode) end
+        end)
+
+        b:SetAttribute("ModeValue", value)
+        paint()
+        return b
+    end
+
+    mk("TELEPORTE", "teleport")
+    mk("TELEGUIADO", "guided")
+
+    return {
+        Get = function() return mode end,
+        Set = function(v)
+            mode = v == "teleport" and "teleport" or "guided"
+            for _,child in ipairs(row:GetChildren()) do
+                if child:IsA("TextButton") and child:GetAttribute("ModeValue") then
+                    local selected = child:GetAttribute("ModeValue") == mode
+                    child.BackgroundColor3 = selected and Theme.Accent or Theme.Surface3
+                    child.TextColor3 = selected and Theme.Text or Theme.Muted
+                end
+            end
+            if cb then cb(mode) end
+        end
+    }
+end
 
 local function slider(parent, titleText, subtitleText, minValue, maxValue, defaultValue, step, suffix, cb)
     local value = math.clamp(tonumber(defaultValue) or minValue, minValue, maxValue)
@@ -767,35 +852,53 @@ local function safeCollect(target)
         10.00
     )
 
-    -- Destino alguns studs ao lado/acima do ponto de interação.
     local eggCF = CFrame.new(pos + Vector3.new(0, 2.5, 4), pos)
+    local mode = State.travelMode == "teleport" and "teleport" or "guided"
 
-    -- 1) Vai VOANDO até o egg. Nada de TP instantâneo.
     requestStreamAtTarget(target)
 
-    local flewIn = flyToCFrame(eggCF, flightTime)
-    if not flewIn then
-        return false, "FLY_IN_FAILED"
+    -- IDA
+    if mode == "teleport" then
+        r.CFrame = eggCF
+    else
+        local flewIn = flyToCFrame(eggCF, flightTime)
+        if not flewIn then
+            return false, "FLY_IN_FAILED"
+        end
     end
 
-    -- Dá tempo para o servidor reconhecer que o player realmente chegou.
-    task.wait(0.85)
+    -- Tempo para o servidor reconhecer chegada.
+    task.wait(mode == "teleport" and 1.25 or 0.85)
 
-    -- 2) Interage normalmente já estando perto.
     local fired, why = normalPromptInteract(target)
     if not fired then
-        -- Mesmo em falha, volta voando para a base.
-        flyToCFrame(homeCF, flightTime)
+        -- Volta para base mesmo se a interação falhar.
+        if mode == "teleport" then
+            task.wait(0.35)
+            local rr = root()
+            if rr then rr.CFrame = homeCF end
+        else
+            flyToCFrame(homeCF, flightTime)
+        end
         return false, why
     end
 
-    -- 3) Janela de confirmação da coleta antes de sair.
+    -- Dá tempo para a coleta ser confirmada.
     task.wait(1.50)
 
-    -- 4) Volta VOANDO para a própria base.
-    local flewHome = flyToCFrame(homeCF, flightTime)
-    if not flewHome then
-        return false, "FLY_HOME_FAILED"
+    -- VOLTA
+    if mode == "teleport" then
+        local rr = root()
+        if rr then
+            rr.CFrame = homeCF
+        else
+            return false, "NO_CHARACTER_RETURN"
+        end
+    else
+        local flewHome = flyToCFrame(homeCF, flightTime)
+        if not flewHome then
+            return false, "FLY_HOME_FAILED"
+        end
     end
 
     return true
@@ -1251,10 +1354,20 @@ do
             UI:Notify("Anti Pause","Anti Gameplay Paused desativado.")
         end
     end)
+    modeSelector(
+        automation,
+        "Modo de deslocamento",
+        "Escolha como o hub vai até o egg e volta para a base.",
+        State.travelMode,
+        function(mode)
+            State.travelMode = mode
+        end
+    )
+
     slider(
         automation,
         "Velocidade do voo • 5s ↔ 10s",
-        "Tempo para IR e VOLTAR voando. Mínimo 5s • Máximo 10s.",
+        "Usado apenas no modo TELEGUIADO. Mínimo 5s • Máximo 10s.",
         5.00,
         10.00,
         math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00),
@@ -1275,7 +1388,7 @@ do
     action(quick,"TP HOME","Voltar para sua plot.",function()
         if not teleportHome() then UI:Notify("Teleport","Sua plot não foi encontrada.") end
     end)
-    action(quick,"COLETAR CHERUB","Vai VOANDO até o Cherub, coleta de perto e volta VOANDO para sua base.",function()
+    action(quick,"COLETAR CHERUB","Usa o modo selecionado: TELEPORTE ou TELEGUIADO.",function()
         local e=findCherub()
         if e then
             local worked, reason=safeCollect(e)
@@ -1592,7 +1705,7 @@ do
     Add.MouseButton1Click:Connect(addManual)
     Manual.FocusLost:Connect(function(enter) if enter then addManual() end end)
 
-    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Vai VOANDO até o alvo, coleta de perto e volta VOANDO para sua base.",function()
+    action(targetsCard,"COLETAR ALVO DISPONÍVEL","Usa o modo selecionado para ir até o alvo e voltar à base.",function()
         local e=wantedEgg()
         if e then
             local worked, reason=safeCollect(e)
@@ -1639,7 +1752,7 @@ do
         if v then startAutoHop() end
     end)
 
-    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, vai VOANDO até ele, coleta e volta VOANDO.",function()
+    action(serverCard,"VERIFICAR / COLETAR ALVO","Se encontrar um alvo, usa o modo escolhido, coleta e volta à base.",function()
         local e=wantedEgg()
         if e then
             UI:Notify("Egg Track","Encontrado: "..e.Name)
@@ -1688,4 +1801,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.4 FLY-IN + FLY-OUT carregado")
+print("[ZYRO HUB] Ride A Pet v5.5 TELEPORT + TELEGUIADO carregado")
