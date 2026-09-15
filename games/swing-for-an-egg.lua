@@ -1,4 +1,4 @@
--- ZyroHub • Swing For An Egg v1.0
+-- ZyroHub • Swing For An Egg v1.2 • AUTO STEAL BEST EGG
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
@@ -6,7 +6,7 @@ local LP = Players.LocalPlayer
 local UI = getgenv().ZyroUI
 assert(UI, "[ZYRO HUB] ZyroUI não encontrada")
 
-UI:SetGame("Swing For An Egg", "Teleports e utilidades")
+UI:SetGame("Swing For An Egg", "Teleports, detecção e Auto Steal")
 UI:Tab("Teleports")
 UI:UseTab("Teleports")
 
@@ -91,6 +91,150 @@ local function homeDestination()
     return cfOf(plot), plot
 end
 
+
+-- ============================================================
+-- AUTO STEAL BEST EGG
+-- Detecta especiais pelo Outline criado dentro do SpawnedEgg.
+-- Colossal e Secret = alvo.
+-- Legendary = ignorado de propósito.
+-- ============================================================
+
+local autoStealBestEgg = false
+local lastTarget = nil
+local lastTeleportAt = 0
+local SPECIAL_COOLDOWN = 2.0
+
+local function spawnedEggCF(egg)
+    if not egg or not egg.Parent then return nil end
+
+    -- O PromptAnchor fica no próprio SpawnedEgg e é o melhor ponto
+    -- para chegar perto do prompt "Collect Egg".
+    local anchor = egg:FindFirstChild("PromptAnchor", true)
+    if anchor and anchor:IsA("BasePart") then
+        return anchor.CFrame * CFrame.new(0, 3, 2)
+    end
+
+    if egg:IsA("Model") then
+        return egg:GetPivot() * CFrame.new(0, 3, 2)
+    elseif egg:IsA("BasePart") then
+        return egg.CFrame * CFrame.new(0, 3, 2)
+    end
+end
+
+local function specialType(egg)
+    if not egg or egg.Name ~= "SpawnedEgg" then return nil end
+
+    -- Confirmado no Colossal pelo Dex:
+    -- SpawnedEgg > ColossalOutline
+    if egg:FindFirstChild("ColossalOutline", true) then
+        return "Colossal", 3
+    end
+
+    -- Preparado para a estrutura equivalente do Secret.
+    if egg:FindFirstChild("SecretOutline", true) then
+        return "Secret", 2
+    end
+
+    -- Legendary NÃO é roubado.
+    if egg:FindFirstChild("LegendaryOutline", true) then
+        return "Legendary", 1
+    end
+
+    -- Fallback por nome de descendants caso o jogo use outro sufixo.
+    for _,d in ipairs(egg:GetDescendants()) do
+        local n = d.Name:lower()
+        if n:find("colossal", 1, true) then
+            return "Colossal", 3
+        elseif n:find("secret", 1, true) then
+            return "Secret", 2
+        elseif n:find("legendary", 1, true) then
+            return "Legendary", 1
+        end
+    end
+
+    return nil
+end
+
+local function findBestSpecialEgg()
+    local eggsFolder = Workspace:FindFirstChild("Eggs")
+    if not eggsFolder then return nil end
+
+    local bestEgg, bestType, bestPriority
+
+    for _,obj in ipairs(eggsFolder:GetDescendants()) do
+        if obj.Name == "SpawnedEgg" then
+            local kind, priority = specialType(obj)
+
+            -- Legendary é detectável, mas fica fora do Auto Steal.
+            if kind and kind ~= "Legendary" then
+                if not bestPriority or priority > bestPriority then
+                    bestEgg = obj
+                    bestType = kind
+                    bestPriority = priority
+                end
+            end
+        end
+    end
+
+    return bestEgg, bestType
+end
+
+local function stealBestEggOnce()
+    if not autoStealBestEgg then return false end
+
+    local egg, kind = findBestSpecialEgg()
+    if not egg then return false end
+
+    local now = os.clock()
+
+    -- Evita ficar teleportando sem parar para o mesmo egg.
+    if egg == lastTarget and (now - lastTeleportAt) < SPECIAL_COOLDOWN then
+        return false
+    end
+
+    local cf = spawnedEggCF(egg)
+    if not cf then return false end
+
+    if tpCF(cf) then
+        lastTarget = egg
+        lastTeleportAt = now
+
+        local eggName = egg:GetAttribute("EggName")
+        local zone = egg.Parent and egg.Parent.Parent
+        local zoneName = zone and zone.Name or "?"
+
+        UI:Notify(
+            "Auto Steal Best Egg",
+            tostring(kind).." detectado • "..tostring(eggName or "Egg").." • "..zoneName,
+            "success"
+        )
+
+        print(
+            "[ZYRO HUB] AUTO STEAL:",
+            kind,
+            "|",
+            tostring(eggName),
+            "|",
+            egg:GetFullName()
+        )
+
+        return true
+    end
+
+    return false
+end
+
+-- Scanner contínuo. Também cobre eggs que já estavam spawnados
+-- antes do toggle ser ligado.
+task.spawn(function()
+    while task.wait(0.20) do
+        if autoStealBestEgg then
+            pcall(stealBestEggOnce)
+        end
+    end
+end)
+
+
 UI:Section("Teleports")
 
 UI:Button("TP ÚLTIMA ZONA", "Detecta automaticamente a maior ZoneN e vai até um EggNest.", function()
@@ -134,6 +278,56 @@ UI:Button("VERIFICAR ÚLTIMA ZONA", "Mostra qual é a maior zona disponível no 
     end
 end)
 
+
+-- Aba separada para automações deste jogo.
+UI:Tab("Auto Steal")
+UI:UseTab("Auto Steal")
+
+UI:Section("Best Egg")
+
+UI:Toggle(
+    "AUTO STEAL BEST EGG",
+    "TP automático em Colossal e Secret. Legendary é ignorado.",
+    false,
+    function(state)
+        autoStealBestEgg = state
+
+        if state then
+            lastTarget = nil
+            lastTeleportAt = 0
+            UI:Notify("Auto Steal Best Egg", "Ativado • procurando Colossal/Secret.", "success")
+            task.spawn(stealBestEggOnce)
+        else
+            UI:Notify("Auto Steal Best Egg", "Desativado.", "warn")
+        end
+    end
+)
+
+UI:Button(
+    "PROCURAR ESPECIAL AGORA",
+    "Procura Colossal/Secret já spawnado e teleporta se encontrar.",
+    function()
+        local old = autoStealBestEgg
+        autoStealBestEgg = true
+        local found = stealBestEggOnce()
+        autoStealBestEgg = old
+
+        if not found then
+            UI:Notify("Auto Steal Best Egg", "Nenhum Colossal/Secret detectado agora.", "warn")
+        end
+    end
+)
+
+UI:Section("Prioridade")
+UI:Button(
+    "COLOSSAL > SECRET",
+    "Legendary não entra no Auto Steal.",
+    function()
+        UI:Notify("Auto Steal Best Egg", "Prioridade atual: Colossal > Secret • Legendary ignorado.")
+    end
+)
+
+
 UI:SelectTab("Teleports")
 
-print("[ZYRO HUB] Swing For An Egg v1.1 UI FIX carregado")
+print("[ZYRO HUB] Swing For An Egg v1.2 AUTO STEAL BEST EGG carregado")
