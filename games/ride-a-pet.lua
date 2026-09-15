@@ -1239,11 +1239,11 @@ do
     slider(
         automation,
         "Velocidade da volta",
-        "Tempo do voo de volta para sua BASE. Maior = mais devagar/seguro.",
-        0.60,
-        4.00,
-        tonumber(State.returnFlightTime) or 5.00,
-        0.05,
+        "Tempo do voo de volta para sua BASE. Ajuste entre 5 e 10 segundos.",
+        5.00,
+        10.00,
+        math.clamp(tonumber(State.returnFlightTime) or 5.00, 5.00, 10.00),
+        0.10,
         "s",
         function(v)
             State.returnFlightTime = v
@@ -1673,4 +1673,4 @@ if State.autoHop and next(State.targets)~=nil then
     end)
 end
 
-print("[ZYRO HUB] Ride A Pet v5.1 HOME RETURN 5S carregado")
+print("[ZYRO HUB] Ride A Pet v5.2 RETURN RANGE 5-10S carregado")
