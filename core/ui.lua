@@ -79,6 +79,7 @@ function UI:Tab(name)
     return tab
 end
 function UI:SelectTab(name) if tabs[name] then switchTab(tabs[name]) end end
+function UI:GetTabPage(name) return tabs[name] and tabs[name].page or nil end
 function UI:UseTab(name) if tabs[name] then current=tabs[name].page end end
 function UI:Section(text)
     local p=ensureDefault(); local l=Instance.new("TextLabel",p); l.Size=UDim2.new(1,0,0,30); l.BackgroundTransparency=1
